@@ -1,49 +1,63 @@
-# History files
+# Ignore R associated files
+.Rproj.user
 .Rhistory
-.Rapp.history
 
-# Session Data files
+# Ignore R data
 .RData
-.RDataTmp
 
-# User-specific files
-.Ruserdata
+# Docs, since reproducible
+man/
 
-# Example code in package build process
-*-Ex.R
-
-# Output files from R CMD build
-/*.tar.gz
-
-# Output files from R CMD check
-/*.Rcheck/
-
-# RStudio files
-.Rproj.user/
-
-# produced vignettes
+# ignore produced vignettes
+inst/doc/*
 vignettes/*.html
 vignettes/*.pdf
 
-# OAuth2 token, see https://github.com/hadley/httr/releases/tag/v0.3
-.httr-oauth
+# ignore OS X Finder files
+*.DS_Store
 
-# knitr and R markdown default cache directories
-*_cache/
-/cache/
+# ignore emacs backup files
+*~
 
-# Temporary files created by R markdown
-*.utf8.md
-*.knit.md
+# exclude IDE-project files from RStudio and Eclipse
+*.Rproj
+*.project
 
-# R Environment Variables
-.Renviron
+# C extensions
+*.so
 
-# pkgdown site
-docs/
+# Django stuff:
+*.log
 
-# translation temp files
-po/*~
+# DotEnv configuration
+.env
 
-# RStudio Connect folder
-rsconnect/
+# Database
+*.db
+*.rdb
+
+# Pycharm
+.idea
+
+# VS Code
+.vscode/
+
+# Spyder
+.spyproject/
+
+# Jupyter NB Checkpoints
+.ipynb_checkpoints/
+
+# exclude data from source control by default
+data/
+
+# Mac OS-specific storage files
+.DS_Store
+
+# vim
+*.swp
+*.swo
+
+# Virtualenv (renv)
+renv/library/
+renv/*.ignore
