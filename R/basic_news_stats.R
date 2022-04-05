@@ -30,62 +30,96 @@ conn <- dbConnect(driver, url)
 # conn <- get_redshift_connection()
 
 # test that it works:
-dbGetQuery(conn,"select distinct brand_title, series_title  from prez.scv_vmb limit 10;")
+dbGetQuery(conn,"select distinct brand_title, series_title from prez.scv_vmb ORDER BY RANDOM() limit 10;")
 
-#### Basic Demographics
+######## Basic Demographics ########
 data<-dbGetQuery(conn, "SELECT * FROM central_insights_sandbox.vb_news_basics;")
 data$users<-as.numeric(data$users)
-data$app_type<-factor(data$app_type,levels = c('mobile-chrysalis','app','web') )
+data$app_type<-factor(data$app_type,levels = c('web','app', 'chrysalis') )
 data %>% head()
 
 
+##### function to make the graphs #####
 
-### age_gender
-plot_data<-data %>%
-  group_by(app_type,age_range, gender) %>%
-  summarise(users=sum(users)) %>% 
-  filter(age_range !='Unknown')
-plot_data
+make_graph <- function(df, #the input data
+                       field_to_plot, # the data field you wish to split by (str)
+                       graph_title = NULL, # the title (str)
+                       palette_family = 0, ##e.g "brewer","wes_anderson"- these two families can be used or leave blank for a default
+                       colour_palette = NULL ,  # the palette name e.g "Set1" (str) or "GrandBudapest1"
+                       n_colours = NULL ##the number of colours required 
+                       ) {
+  grouping_fields<- c("app_type") %>% append(field_to_plot)
+  
+  plot_data <-df %>%
+      group_by_at({{grouping_fields}}) %>%
+      summarise(users = sum(users)) %>%
+      mutate(perc = round(100 * users / sum(users), 0)) %>%
+      mutate(dummy = 1) %>%
+      left_join(df %>% group_by(app_type) %>% summarise(total_users = signif(sum(users), 3)),
+                by = "app_type")
+    print(plot_data)
+    
+    
+    graph <- ggplot(data = plot_data ,
+                    aes( x = dummy, y = users, group = !!sym(field_to_plot),fill = !!sym(field_to_plot))) +
+      geom_col(inherit.aes = TRUE,position = "stack", show.legend = TRUE) +
+      ylab("Users") +
+      labs(title = graph_title) +
+      geom_text(aes(label = paste0(plot_data$perc , "%")),
+                position = position_stack(vjust = 0.5),
+                colour = "black") +
+      geom_label(
+        data = plot_data,
+        aes(label = paste0(scales::comma(total_users), " users")),
+        y = plot_data$total_users*1.025,
+        colour = "black",
+        fill = "white") +
+      {if(palette_family == 'brewer')scale_fill_manual(name = field_to_plot,
+                        values = brewer.pal(n_colours, name = colour_palette)
+                        )} +
+      {if(palette_family == 'wes_anderson')scale_fill_manual(name = field_to_plot,
+                        values = wes_palette(n_colours, name = colour_palette)
+      )} +
+      scale_y_continuous(label = comma,
+                         n.breaks = 6
+                         ) +
+      theme(legend.position = "bottom",
+        axis.title.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank()) +
+      facet_wrap(~ app_type, scales = "free_y")
+    
+    return(graph)
+  }
+age_graph <- make_graph(
+  df = data,
+  field_to_plot = "age_range",
+  graph_title = "Age split for BBC News (2022-01-15 to 2022-03-31)",
+  colour_palette = "Darjeeling1",
+  palette_family = 'wes_anderson',
+  n_colours = 5
+)
+age_graph
 
-perc_labs<-plot_data %>%ungroup() %>%group_by(app_type,age_range)%>%mutate(perc = round(100*users/sum(users),0))
-perc_labs
-age_perc<-plot_data %>%ungroup() %>%group_by(app_type,age_range)%>%summarise(users = sum(users)) %>%mutate(perc = round(100*users/sum(users),0))
-age_perc
+gender_graph <- make_graph(
+  df = data,
+  field_to_plot = "gender",
+  graph_title = "Gender split for BBC News (2022-01-15 to 2022-03-31)",
+  colour_palette = "GrandBudapest1",
+  palette_family = 'wes_anderson',
+  n_colours = 3
+)
+gender_graph
 
-age_perc_labs <- perc_labs %>%
-  select(app_type, age_range, gender) %>%
-  left_join(age_perc, by = c('age_range', 'app_type')) %>%
-  replace(is.na(.), 0) %>%
-  left_join(
-    plot_data %>%
-      summarise(total = sum(users) / 1000000) %>%
-      group_by(app_type) %>%
-      summarise(max_value = max(total))
-  )
-
-
-
-
-ggplot(data = plot_data ,
-       aes(x = age_range,y = users/1000000, group = gender, fill = gender)) +
-  geom_col(inherit.aes = TRUE,
-           position = "stack",
-           show.legend = TRUE)+
-  #scale_y_continuous(limits = c(0, max_value$total*1.1), breaks = seq(0, max_value$total*1.1, by = 1))+
-  xlab("Age Range") +
-  ylab("Users (millions)") +
-  labs(title = paste0('Age & gender distribution of News users \n(2022-01-15 to 2022-03-31)'))+
-  geom_text(aes(label=paste0(perc_labs$perc ,"%")),
-            position=position_stack(vjust = 0.5),
-            colour="black")+
-  geom_label(data = age_perc_labs,
-             aes(label=paste0(age_perc_labs$perc ,"%")),
-             y = age_perc_labs$max_value,
-             colour="black",
-             fill = "white")+
-  scale_fill_manual(name = "Gender",values=wes_palette(n=3, name="GrandBudapest1"))+
-  theme(legend.position = "bottom")+
-  facet_wrap(~app_type, scales = "free_y")
+acorn_graph <- make_graph(
+  df = data,
+  field_to_plot = "acorn_cat",
+  graph_title = "Acorn split for BBC News (2022-01-15 to 2022-03-31)",
+  colour_palette = "Set1",
+  palette_family = 'brewer',
+  n_colours = 7
+)
+acorn_graph
 
 
 
