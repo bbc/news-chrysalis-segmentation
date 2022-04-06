@@ -42,21 +42,22 @@ data %>% head()
 ##### function to make the graphs #####
 
 make_graph <- function(df, #the input data
+                       comparison_measure, #the value to facet wrap (create comparable bars) by e.g app type
                        field_to_plot, # the data field you wish to split by (str)
                        graph_title = NULL, # the title (str)
                        palette_family = 0, ##e.g "brewer","wes_anderson"- these two families can be used or leave blank for a default
                        colour_palette = NULL ,  # the palette name e.g "Set1" (str) or "GrandBudapest1"
                        n_colours = NULL ##the number of colours required 
                        ) {
-  grouping_fields<- c("app_type") %>% append(field_to_plot)
-  
-  plot_data <-df %>%
+  grouping_fields<- comparison_measure %>% append(field_to_plot)
+
+  plot_data <-
+    df %>%
       group_by_at({{grouping_fields}}) %>%
       summarise(users = sum(users)) %>%
       mutate(perc = round(100 * users / sum(users), 0)) %>%
       mutate(dummy = 1) %>%
-      left_join(df %>% group_by(app_type) %>% summarise(total_users = signif(sum(users), 3)),
-                by = "app_type")
+      left_join(df %>% group_by(!!sym(comparison_measure)) %>% summarise(total_users = signif(sum(users), 3)))
     print(plot_data)
     
     
@@ -87,12 +88,14 @@ make_graph <- function(df, #the input data
         axis.title.x = element_blank(),
         axis.text.x = element_blank(),
         axis.ticks.x = element_blank()) +
-      facet_wrap(~ app_type, scales = "free_y")
+      facet_wrap(comparison_measure , scales = "free_y")
     
+
     return(graph)
   }
 age_graph <- make_graph(
   df = data,
+  comparison_measure = 'app_type',
   field_to_plot = "age_range",
   graph_title = "Age split for BBC News (2022-01-15 to 2022-03-31)",
   colour_palette = "Darjeeling1",
@@ -103,6 +106,7 @@ age_graph
 
 gender_graph <- make_graph(
   df = data,
+  comparison_measure = "app_type",
   field_to_plot = "gender",
   graph_title = "Gender split for BBC News (2022-01-15 to 2022-03-31)",
   colour_palette = "GrandBudapest1",
@@ -113,6 +117,7 @@ gender_graph
 
 acorn_graph <- make_graph(
   df = data,
+  comparison_measure = "app_type",
   field_to_plot = "acorn_cat",
   graph_title = "Acorn split for BBC News (2022-01-15 to 2022-03-31)",
   colour_palette = "Set1",
