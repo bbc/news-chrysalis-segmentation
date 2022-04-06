@@ -38,6 +38,14 @@ data$users<-as.numeric(data$users)
 data$app_type<-factor(data$app_type,levels = c('web','app', 'chrysalis') )
 data %>% head()
 
+# Example data structure
+# app_type    gender age_range                  acorn_cat  users
+#        web unknown     45-54   04_Financially Stretched  25274
+#        web  female     45-54       02_Rising Prosperity 100060
+#        web  female     16-24         05_Urban Adversity  33170
+#  chrysalis  female     45-54 03_Comfortable Communities    342
+#  chrysalis  female       55+       02_Rising Prosperity    428
+#        app    male     45-54                    unknown   3564
 
 ##### function to make the graphs #####
 
