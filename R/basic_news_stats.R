@@ -135,4 +135,88 @@ acorn_graph <- make_graph(
 acorn_graph
 
 
+######## Daily traffic ########
+data<-dbGetQuery(conn, "SELECT * FROM central_insights_sandbox.vb_news_daily;")
+data$users<-as.numeric(data$users)
+data$visits<-as.numeric(data$visits)
+data<-data %>% rename(dt = date_of_event)
+data$app_type<-factor(data$app_type,levels = c('web','app', 'chrysalis') )
+data %>% head()
+
+
+### users and visits
+plot_data <- data %>% 
+  group_by(dt,app_type) %>% 
+  summarise(users = sum(users), visits = sum(visits)) %>% 
+  gather(key = measure, value = value, users:visits) %>% 
+  group_by(app_type, measure) %>% 
+  mutate(mean = signif(mean(value),2))
+plot_data$app_type<-factor(plot_data$app_type,levels = c('web','app', 'chrysalis') )
+plot_data 
+
+
+x_axis_dates <- ymd(c(
+  '2022-01-15',
+  '2022-01-20',
+  '2022-01-25',
+  '2022-01-30',
+  '2022-02-04',
+  '2022-02-09',
+  '2022-02-14',
+  '2022-02-19',
+  '2022-02-24',
+  '2022-03-01',
+  '2022-03-06',
+  '2022-03-11',
+  '2022-03-16',
+  '2022-03-21',
+  '2022-03-26',
+  '2022-03-31'
+))
+war_label <- data.frame(
+  label = c("Russia invades Ukraine", "", ""),
+  app_type   = factor(c('web','app', 'chrysalis'), levels =c('web','app', 'chrysalis'))
+)
+ggplot(data= plot_data, aes(x = dt, colour = measure) )+
+  geom_line(aes(y = value))+
+  geom_line(aes(y = mean),linetype="dotted")+
+  ylab("Users")+
+  xlab("Date")+
+  scale_y_continuous(label = comma,
+                     n.breaks = 6) +
+  scale_x_date(labels = date_format("%Y-%m-%d"),
+               breaks = x_axis_dates)+
+  geom_vline(xintercept = ymd('2022-02-24'), linetype="dashed",
+             color = "black")+
+  geom_text( data = war_label,
+             mapping = aes(x = ymd('2022-02-24'), y = Inf, label = label),
+            hjust   = -0.1,
+             vjust   = 1.2,
+            colour = "black") +
+  geom_text( data = plot_data,
+             mapping = aes(x = ymd('2022-03-31'), y = plot_data$mean, label = comma(plot_data$mean)),
+             #hjust   = -0.1,
+             vjust   = -1,
+             colour = "black") +
+  theme(axis.text.x=element_text(angle=60, hjust=1))+
+  facet_wrap(~app_type, scales = "free_y", ncol = 1)
+
+
+
+
+### users and visits
+plot_data <- data %>% 
+  group_by(dt,app_type) %>% 
+  summarise(users = sum(users), visits = sum(visits)) %>% 
+  gather(key = measure, value = value, users:visits) %>% 
+  group_by(app_type, measure) %>% 
+  mutate(mean = signif(mean(value),2))
+plot_data$app_type<-factor(plot_data$app_type,levels = c('web','app', 'chrysalis') )
+plot_data 
+
+
+
+
+
+
 
