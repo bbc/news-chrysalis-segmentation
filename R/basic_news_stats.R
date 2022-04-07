@@ -144,17 +144,6 @@ data$app_type<-factor(data$app_type,levels = c('web','app', 'chrysalis') )
 data %>% head()
 
 
-### users and visits
-plot_data <- data %>% 
-  group_by(dt,app_type) %>% 
-  summarise(users = sum(users), visits = sum(visits)) %>% 
-  gather(key = measure, value = value, users:visits) %>% 
-  group_by(app_type, measure) %>% 
-  mutate(mean = signif(mean(value),2))
-plot_data$app_type<-factor(plot_data$app_type,levels = c('web','app', 'chrysalis') )
-plot_data 
-
-
 x_axis_dates <- ymd(c(
   '2022-01-15',
   '2022-01-20',
@@ -177,11 +166,25 @@ war_label <- data.frame(
   label = c("Russia invades Ukraine", "", ""),
   app_type   = factor(c('web','app', 'chrysalis'), levels =c('web','app', 'chrysalis'))
 )
+
+
+### users and visits
+plot_data <- data %>% 
+  group_by(dt,app_type) %>% 
+  summarise(users = sum(users), visits = sum(visits)) %>% 
+  gather(key = measure, value = value, users:visits) %>% 
+  group_by(app_type, measure) %>% 
+  mutate(mean = signif(mean(value),2))
+plot_data$app_type<-factor(plot_data$app_type,levels = c('web','app', 'chrysalis') )
+plot_data 
+
+### users and visits
 ggplot(data= plot_data, aes(x = dt, colour = measure) )+
   geom_line(aes(y = value))+
   geom_line(aes(y = mean),linetype="dotted")+
   ylab("Users")+
   xlab("Date")+
+  labs(title = "User and Visits per day to BBC News (2022-01-15 to 2022-03-31)") +
   scale_y_continuous(label = comma,
                      n.breaks = 6) +
   scale_x_date(labels = date_format("%Y-%m-%d"),
@@ -203,20 +206,73 @@ ggplot(data= plot_data, aes(x = dt, colour = measure) )+
 
 
 
+##### Daily traffic split by demographics #####
 
-### users and visits
-plot_data <- data %>% 
-  group_by(dt,app_type) %>% 
-  summarise(users = sum(users), visits = sum(visits)) %>% 
-  gather(key = measure, value = value, users:visits) %>% 
-  group_by(app_type, measure) %>% 
-  mutate(mean = signif(mean(value),2))
-plot_data$app_type<-factor(plot_data$app_type,levels = c('web','app', 'chrysalis') )
-plot_data 
+make_line_graph <- function(df, #the input data
+                            plotted_measure =c("users","visits") , ## the value to be plotted on the y axis
+                            comparison_measure, #the value to facet wrap (create comparable bars) by e.g app type
+                            field_to_split_by,# the data field you wish to split by (str)
+                            graph_title = NULL,# the title (str)
+                            palette_family = 0, ##e.g "brewer","wes_anderson"- these two families can be used or leave blank for a default
+                            colour_palette = NULL , # the palette name e.g "Set1" (str) or "GrandBudapest1"
+                            n_colours = NULL ##the number of colours required 
+                            ) {
+                            
+  grouping_fields<- comparison_measure %>% append(field_to_split_by)
+
+  plot_data <- 
+    df %>%  
+    group_by_at({{c("dt") %>% append(grouping_fields)}}) %>% 
+    summarise(measure = sum(!!sym(plotted_measure))) %>% 
+    group_by_at({{grouping_fields}}) %>% 
+    mutate(mean = signif(mean(measure),2))
+
+  if(comparison_measure =='app_type'){
+    plot_data$app_type<-factor(plot_data$app_type,levels = c('web','app', 'chrysalis') )
+    }
+  print(plot_data %>% head())
+  
+
+ggplot(data= plot_data, aes(x = dt, colour = !!sym(field_to_split_by)) )+
+  geom_line(aes(y = measure))+
+  geom_line(aes(y = mean),linetype="dotted")+
+  ylab(plotted_measure)+
+  xlab("Date")+
+  labs(title = graph_title) +
+  scale_y_continuous(label = comma,
+                     n.breaks = 6) +
+  scale_x_date(labels = date_format("%Y-%m-%d"),
+               breaks = x_axis_dates)+
+  geom_vline(xintercept = ymd('2022-02-24'), linetype="dashed",
+             color = "black")+
+  geom_text( data = war_label,
+             mapping = aes(x = ymd('2022-02-24'), y = Inf, label = label),
+             hjust   = -0.1,
+             vjust   = 1.2,
+             colour = "black") +
+  geom_text( data = plot_data,
+             mapping = aes(x = ymd('2022-03-31'), y = plot_data$mean, label = comma(plot_data$mean)),
+             colour = "black") +
+  {if(palette_family == 'brewer')scale_colour_manual(name = field_to_split_by,
+                                                   values = brewer.pal(n_colours, name = colour_palette)
+  )} +
+  {if(palette_family == 'wes_anderson')scale_colour_manual(name = field_to_split_by,
+                                                         values = wes_palette(n_colours, name = colour_palette)
+  )} +
+  theme(axis.text.x=element_text(angle=60, hjust=1))+
+  facet_wrap(~app_type, scales = "free_y", ncol = 1)
+
+}
 
 
-
-
-
+make_line_graph(  df = data,
+                  plotted_measure = "visits",
+                  comparison_measure = "app_type",
+                  field_to_split_by = "gender",
+                  graph_title = "Visits split by gender for BBC News (2022-01-15 to 2022-03-31)",
+                  colour_palette = "GrandBudapest1",
+                  palette_family = 'wes_anderson',
+                  n_colours = 3
+)
 
 
