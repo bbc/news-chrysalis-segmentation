@@ -8,6 +8,7 @@ library(ggplot2)
 library(scales)
 library(RColorBrewer)
 library(wesanderson)
+library(ggrepel)
 theme_set(theme_classic())
 
 ##### functions ######
@@ -220,18 +221,29 @@ make_line_graph <- function(df, #the input data
                             
   grouping_fields<- comparison_measure %>% append(field_to_split_by)
 
+
   plot_data <- 
     df %>%  
     group_by_at({{c("dt") %>% append(grouping_fields)}}) %>% 
     summarise(measure = sum(!!sym(plotted_measure))) %>% 
     group_by_at({{grouping_fields}}) %>% 
     mutate(mean = signif(mean(measure),2))
+  
+  perc<-
+    plot_data %>% 
+    ungroup() %>% 
+    select({{grouping_fields}}, mean) %>% 
+    unique() %>% 
+    group_by_at({{comparison_measure}}) %>% 
+    mutate(mean_perc =paste0(round(100*mean/sum(mean),0),"%") )
+  
+  plot_data<- plot_data %>% left_join(perc, by = c({{grouping_fields}}, "mean"))
 
   if(comparison_measure =='app_type'){
     plot_data$app_type<-factor(plot_data$app_type,levels = c('web','app', 'chrysalis') )
     }
   print(plot_data %>% head())
-  
+  plot_data<<-plot_data
 
 ggplot(data= plot_data, aes(x = dt, colour = !!sym(field_to_split_by)) )+
   geom_line(aes(y = measure))+
@@ -242,7 +254,9 @@ ggplot(data= plot_data, aes(x = dt, colour = !!sym(field_to_split_by)) )+
   scale_y_continuous(label = comma,
                      n.breaks = 6) +
   scale_x_date(labels = date_format("%Y-%m-%d"),
-               breaks = x_axis_dates)+
+               breaks = x_axis_dates,
+               limits = c(data$dt %>% min(), data$dt %>% max()+6)
+               )+
   geom_vline(xintercept = ymd('2022-02-24'), linetype="dashed",
              color = "black")+
   geom_text( data = war_label,
@@ -250,8 +264,12 @@ ggplot(data= plot_data, aes(x = dt, colour = !!sym(field_to_split_by)) )+
              hjust   = -0.1,
              vjust   = 1.2,
              colour = "black") +
-  geom_text( data = plot_data,
-             mapping = aes(x = ymd('2022-03-31'), y = plot_data$mean, label = comma(plot_data$mean)),
+  geom_text_repel(data = plot_data %>% filter(dt ==  ymd('2022-03-31')),
+             mapping = aes(x = ymd('2022-03-31'),
+                           y = plot_data$mean[plot_data$dt == ymd('2022-03-31')], 
+                           label = paste0(comma(plot_data$mean[plot_data$dt == ymd('2022-03-31')])," (", plot_data$mean_perc[plot_data$dt == ymd('2022-03-31')])
+                                          ),
+             hjust = "right",
              colour = "black") +
   {if(palette_family == 'brewer')scale_colour_manual(name = field_to_split_by,
                                                    values = brewer.pal(n_colours, name = colour_palette)
@@ -264,15 +282,45 @@ ggplot(data= plot_data, aes(x = dt, colour = !!sym(field_to_split_by)) )+
 
 }
 
+age_users<-
+  make_line_graph(  df = data,
+                    plotted_measure = "users",
+                    comparison_measure = "app_type",
+                    field_to_split_by = "age_range",
+                    graph_title = "Users split by age range for BBC News (2022-01-15 to 2022-03-31)",
+                    colour_palette = "Darjeeling1",
+                    palette_family = 'wes_anderson',
+                    n_colours = 5
+  )
+age_users
 
-make_line_graph(  df = data,
-                  plotted_measure = "visits",
+gender_users<-
+  make_line_graph(  df = data,
+                  plotted_measure = "users",
                   comparison_measure = "app_type",
                   field_to_split_by = "gender",
-                  graph_title = "Visits split by gender for BBC News (2022-01-15 to 2022-03-31)",
+                  graph_title = "Users split by gender for BBC News (2022-01-15 to 2022-03-31)",
                   colour_palette = "GrandBudapest1",
                   palette_family = 'wes_anderson',
                   n_colours = 3
 )
+gender_users
+
+
+acorn_users<-
+  make_line_graph(  df = data,
+                    plotted_measure = "users",
+                    comparison_measure = "app_type",
+                    field_to_split_by = "acorn_cat",
+                    graph_title = "Users split by acorn category for BBC News (2022-01-15 to 2022-03-31)",
+                    colour_palette = "Set1",
+                    palette_family = 'brewer',
+                    n_colours = 7
+  )
+acorn_users
+
+
+
+
 
 
