@@ -51,6 +51,7 @@ data %>% head()
 ##### function to make the graphs #####
 
 make_graph <- function(df, #the input data
+                       plotted_measure = 'users',
                        comparison_measure, #the value to facet wrap (create comparable bars) by e.g app type
                        field_to_plot, # the data field you wish to split by (str)
                        graph_title = NULL, # the title (str)
@@ -63,15 +64,16 @@ make_graph <- function(df, #the input data
   plot_data <-
     df %>%
       group_by_at({{grouping_fields}}) %>%
-      summarise(users = sum(users)) %>%
-      mutate(perc = round(100 * users / sum(users), 0)) %>%
+      summarise(measure = sum(!!sym(plotted_measure))) %>%
+      mutate(perc = round(100 * measure / sum(measure), 0)) %>%
       mutate(dummy = 1) %>%
-      left_join(df %>% group_by(!!sym(comparison_measure)) %>% summarise(total_users = signif(sum(users), 3)))
+      left_join(df %>% group_by(!!sym(comparison_measure)) %>% summarise(total = signif(sum(!!sym(plotted_measure)), 3)))
     print(plot_data)
     
     
+    
     graph <- ggplot(data = plot_data ,
-                    aes( x = dummy, y = users, group = !!sym(field_to_plot),fill = !!sym(field_to_plot))) +
+                    aes( x = dummy, y = measure, group = !!sym(field_to_plot),fill = !!sym(field_to_plot))) +
       geom_col(inherit.aes = TRUE,position = "stack", show.legend = TRUE) +
       ylab("Users") +
       labs(title = graph_title) +
@@ -80,8 +82,8 @@ make_graph <- function(df, #the input data
                 colour = "black") +
       geom_label(
         data = plot_data,
-        aes(label = paste0(scales::comma(total_users), " users")),
-        y = plot_data$total_users*1.025,
+        aes(label = paste0(scales::comma(total), " ",plotted_measure)),
+        y = plot_data$total*1.025,
         colour = "black",
         fill = "white") +
       {if(palette_family == 'brewer')scale_fill_manual(name = field_to_plot,
@@ -206,6 +208,33 @@ ggplot(data= plot_data, aes(x = dt, colour = measure) )+
   facet_wrap(~app_type, scales = "free_y", ncol = 1)
 
 
+########## old vs new app ##########
+
+old_vs_new<-data %>% 
+  group_by(dt, app_type) %>% 
+  filter(app_type != 'web') %>% 
+  summarise(measure = sum(visits)) %>%
+  mutate(perc = round(100*measure/sum(measure),2)) %>% 
+  select(-measure) %>% 
+  spread(key = app_type, value = perc)
+
+old_vs_new %>% head()
+old_vs_new$chrysalis %>% max()
+old_vs_new$chrysalis %>% min()
+old_vs_new$chrysalis %>% sd()
+old_vs_new$chrysalis %>% mean()
+old_vs_new$chrysalis %>% median()
+
+ggplot(data = data %>% 
+         group_by(dt, app_type) %>% 
+         filter(app_type != 'web') %>% 
+         summarise(measure = sum(visits)) %>%
+         mutate(perc = round(100*measure/sum(measure),2)), 
+       aes(x = dt, y = perc, fill = app_type))+
+  geom_col(inherit.aes = TRUE,position = "stack", show.legend = TRUE) +
+  scale_y_continuous(limits = c(0,1.5))
+  
+
 
 ##### Daily traffic split by demographics #####
 
@@ -319,8 +348,43 @@ acorn_users<-
   )
 acorn_users
 
+####### pages ######
+
+data <-
+  dbGetQuery(
+    conn,
+    "SELECT app_type, 
+    CASE WHEN pages < 5 then pages::varchar ELSE '5+' END as pages,
+    sum(visits) as visits 
+    FROM central_insights_sandbox.vb_news_pages_summary 
+    WHERE pages !=0
+    GROUP BY 1,2;"
+  )
+data$visits <- as.numeric(data$visits )
+data$app_type<-factor(data$app_type,levels = c('web','app', 'chrysalis') )
+data$pages<-factor(data$pages,levels = c('5+','4','3','2','1') )
+data
+
+make_graph(
+  df = data,
+  plotted_measure = 'visits',
+  comparison_measure = 'app_type',
+  field_to_plot = "pages",
+  graph_title = "Visits containing X number of pages on BBC News (2022-01-15 to 2022-03-31)",
+  colour_palette = "Darjeeling1",
+  palette_family = 'wes_anderson',
+  n_colours = 5
+)
 
 
 
+data %>%
+  group_by_at(grouping_fields) %>%
+  summarise(users = sum(users)) %>%
+  mutate(perc = round(100 * users / sum(users), 0)) %>%
+  mutate(dummy = 1) %>%
+  left_join(df %>% group_by(!!sym(comparison_measure)) %>% summarise(total_users = signif(sum(users), 3)))
+print(plot_data)
+grouping_fields<- comparison_measure %>% append(field_to_plot)
 
 
