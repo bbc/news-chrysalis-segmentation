@@ -99,7 +99,7 @@ make_graph <- function(df, #the input data
         axis.title.x = element_blank(),
         axis.text.x = element_blank(),
         axis.ticks.x = element_blank()) +
-      facet_wrap(comparison_measure , scales = "free_y")
+      facet_wrap(comparison_measure , scales = "free_y", nrow = 1)
     
 
     return(graph)
@@ -349,16 +349,16 @@ acorn_users<-
 acorn_users
 
 ####### pages ######
-
+field<-"acorn_cat"
 data <-
   dbGetQuery(
-    conn,
-    "SELECT app_type, 
+    conn,paste0(
+    "SELECT ",field,", 
     CASE WHEN pages < 5 then pages::varchar ELSE '5+' END as pages,
     sum(visits) as visits 
     FROM central_insights_sandbox.vb_news_pages_summary 
     WHERE pages !=0
-    GROUP BY 1,2;"
+    GROUP BY 1,2;")
   )
 data$visits <- as.numeric(data$visits )
 data$app_type<-factor(data$app_type,levels = c('web','app', 'chrysalis') )
@@ -368,23 +368,14 @@ data
 make_graph(
   df = data,
   plotted_measure = 'visits',
-  comparison_measure = 'app_type',
+  comparison_measure = field,
   field_to_plot = "pages",
   graph_title = "Visits containing X number of pages on BBC News (2022-01-15 to 2022-03-31)",
-  colour_palette = "Darjeeling1",
-  palette_family = 'wes_anderson',
-  n_colours = 5
+  #colour_palette = "Darjeeling1",
+  #palette_family = 'wes_anderson',
+  #n_colours = 5
 )
 
 
-
-data %>%
-  group_by_at(grouping_fields) %>%
-  summarise(users = sum(users)) %>%
-  mutate(perc = round(100 * users / sum(users), 0)) %>%
-  mutate(dummy = 1) %>%
-  left_join(df %>% group_by(!!sym(comparison_measure)) %>% summarise(total_users = signif(sum(users), 3)))
-print(plot_data)
-grouping_fields<- comparison_measure %>% append(field_to_plot)
 
 
