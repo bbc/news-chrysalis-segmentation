@@ -192,13 +192,13 @@ WHERE dt = REPLACE('2022-01-15', '-', '')
 ;
 
 DROP TABLE IF EXISTS vb_carousel_usage;
-CREATE TABLE vb_carousel_usage as
+--CREATE TABLE vb_carousel_usage as
 INSERT INTO vb_carousel_usage
 SELECT a.dt,a.visit_id, a.app_type, b.unique_visitor_cookie_id, b.attribute, mobile_device_manufacturer
 FROM vb_users_chrys a
 LEFT JOIN pub_data b on a.dt = b.dt AND a.visit_id = b.visit_id
 ;
-DELETE FROM vb_carousel_usage;
+--DELETE FROM vb_carousel_usage_2;
 
 SELECT dt, count(*) as rows, count(distinct dt||visit_id) as visits FROM vb_carousel_usage gROUP BY 1 ORDER BY 1;
 SELECT * FROM vb_carousel_usage;
@@ -212,3 +212,48 @@ SELECT count(*) FROM central_insights_sandbox.vb_users_chrys;
 SELECT * FROM central_insights_sandbox.pub_data LIMIT 100;
 SELECT count(*) FROM central_insights_sandbox.pub_data;
 
+--SELECT * FROM vb_carousel_usage_2;
+
+-- summarise
+SELECT dt,
+       CASE WHEN attribute ISNULL THEN 'no_scroll' ELSE 'scroll' END                   as carousel,
+       CASE WHEN mobile_device_manufacturer = 'Apple' THEN 'iPhone' ELSE 'android' end as device_type
+        ,
+       count(*)                                                                        as visits
+FROM vb_carousel_usage_2
+GROUP BY 1, 2, 3
+;
+
+SELECT DISTINCT mobile_device_manufacturer FROM  vb_carousel_usage_2;
+--- How many people are weekly/monthly
+--central_insights.sg10026_info_individual_alltime
+
+-- people in the table
+CREATE TABLE vb_news_freq_seg AS
+SELECT distinct date_of_segmentation,
+                CASE
+                    WHEN upper(left(segvalue, 1)) IN ('A', 'B', 'C') then 'weekly'
+                    WHEN upper(left(segvalue, 1)) IN ('D', 'E') then 'infrequent'
+                    WHEN upper(left(segvalue, 1)) IN ('F') then 'less than monthly'
+                    WHEN upper(left(segvalue, 1)) IN ('G', 'H', 'I') then '13 weeks+'
+                    WHEN segvalue IS NULL THEN 'new'
+                    ELSE 'unknown' END as frequency_group,
+                 count(bbc_hid3)
+FROM central_insights.sg10026_info_individual_alltime
+WHERE date_of_segmentation >  '20220115' AND date_of_segmentation <= '20220331'
+  AND product = 'news'
+GROUP BY 1,2
+ORDER BY 1
+;
+
+-- people who actively used in those weeks
+
+
+SELECT DISTINCT date_of_segmentation, count(bbc_hid3)
+FROM central_insights.sg10026_info_individual_alltime
+WHERE date_of_segmentation > '20220115' AND date_of_segmentation <= '20220331'
+  AND product = 'news'
+GROUP BY 1
+ORDER BY 1
+;
+SELECT * FROM vb_news_daily LIMIT 10;
