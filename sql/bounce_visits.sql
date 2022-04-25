@@ -14,6 +14,7 @@ CREATE TABLE vb_dates (
 INSERT INTO vb_dates VALUES ('2022-01-15', '2022-03-31');
 SELECT * FROM vb_dates;
 
+-- get the visits
 DROP TABLE IF EXISTS vb_pages_per_visit;
 CREATE TABLE vb_pages_per_visit as
 with get_subsections as (
@@ -98,7 +99,8 @@ SELECT * FROM vb_bounce_visits ORDER BY dist_visit ;
 SELECT count(*) as rows, count(distinct dt||visit_id) as visits, count(distinct audience_id) as users FROM vb_bounce_visits;
 
 -- For the top 10 bounce pages, what % of bounce visits are on that page?
-CREATE TABLE vb_bounce_summary as
+--CREATE TABLE vb_bounce_summary as
+INSERT INTO vb_bounce_summary
 with total_visits as (SELECT dt, app_type, count(dist_visit) as total_visits FROM vb_bounce_visits GROUP BY 1,2),
      page_visits as (
          SELECT dt, app_type,
@@ -111,4 +113,29 @@ with total_visits as (SELECT dt, app_type, count(dist_visit) as total_visits FRO
 SELECT a.*, round(100*a.visits::double precision/b.total_visits::double precision,1) as perc
 FROM page_visits a
          LEFT JOIN total_visits b on a.app_type = b.app_type AND a.dt = b.dt
-WHERE rank <=5
+WHERE rank <=5;
+
+
+--DROP TABLE IF EXISTS vb_homepage_bounce;
+--CREATE TABLE vb_homepage_bounce as
+  INSERT INTO  vb_homepage_bounce
+    SELECT * FROM vb_bounce_visits WHERE page_name_cleaned IN ('news.page','news.discovery.page');
+
+SELECT dt, count(*) FROM vb_homepage_bounce GROUP BY 1 ORDER BY 1;--1,636,221
+SELECt * FROM vb_homepage_bounce LIMIT 10;
+SELECT * FROM vb_bounce_visits LIMIT 100;
+
+
+--- What % of bounce visits per day are on homepage?
+SELECT *
+FROM vb_bounce_summary
+--WHERE page_name_cleaned IN ('news.page','news.discovery.page')
+LIMIT 10;
+
+
+-- total bounces
+SELECt dt, app_type, count(dist_visit) as visits
+FROM vb_bounce_visits
+GROUP BY 1,2
+ORDER BY 1,2
+LIMIT 10;
