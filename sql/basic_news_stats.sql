@@ -140,18 +140,21 @@ GROUP BY 1
 LIMIT 10;
 
 ------------ Do users who bounce on Chrysalis use the scroll? ---------------
-
+SELECT * FROM vb_homepage_bounce WHERE app_type = 'chrysalis' LIMIT 10;
 -- get one page visits on Chrysalis
 DROP TABLE IF EXISTS vb_bounce_visits;
 CREATE TABLE vb_bounce_visits as
-SELECT date_of_event::date as dt,
+SELECT dt,
+       dist_visit, -- in the form 2022-01-15-36291875
        visit_id,
        app_type
-FROM vb_news_pages
-WHERE pages = 1 AND app_type = 'chrysalis'
+FROM vb_homepage_bounce
+WHERE  app_type = 'chrysalis'
 ;
-SELECT count(*) FROM vb_bounce_visits LIMIT 100;
+SELECT count(*) FROM vb_bounce_visits; --404,153
+SELECT * FROM vb_bounce_visits LIMIT 10;
 
+DROP TABLE IF EXISTS vb_dates_bounce;
 CREATE TABLE vb_dates_bounce as SELECT DISTINCT dt FROM vb_bounce_visits;
 SELECT * FROM vb_dates_bounce ORDER BY 1;
 
@@ -159,37 +162,43 @@ SELECT * FROM vb_dates_bounce ORDER BY 1;
 DROP TABLE IF EXISTS vb_users_chrys;
 CREATE TABLE vb_users_chrys AS
 with visits as (
-    SELECT DISTINCT dt::date, unique_visitor_cookie_id, visit_id, mobile_device_manufacturer
+    SELECT DISTINCT dt::date, unique_visitor_cookie_id, visit_id, mobile_device_manufacturer, dt|| '-' || visit_id as dist_visit
     FROM s3_audience.visits
     WHERE dt = REPLACE('2022-01-15', '-', '')
       AND destination = 'PS_NEWS'
       AND is_signed_in = TRUE
       AND is_personalisation_on = TRUE
+    AND visit_id IN (SELECT DISTINCT visit_id FROM vb_bounce_visits WHERE dt ='2022-01-15')
 )
 SELECT a.*, unique_visitor_cookie_id, mobile_device_manufacturer
 FROM vb_bounce_visits a
          JOIN visits b on a.dt = b.dt AND a.visit_id = b.visit_id
+WHERE a.dt = '2022-01-15'
 ;
 
-SELECT * FROM vb_users_chrys LIMIT 10;
+SELECT * FROM vb_users_chrys ORDER BY visit_id LIMIT 10;
 SELECT count(DISTINCT dt||visit_id) AS visits, count(DISTINCT unique_visitor_cookie_id) as cookies FROM vb_users_chrys ;
 SELECT DISTINCT dt FROM vb_users_chrys;
 
 -- did they scroll on the top stories carousel?
 DROP TABLE IF EXISTS pub_data;
 CREATE TABLE pub_data AS
-SELECT DISTINCT dt::date,
+SELECT DISTINCT dt::date ,
                 unique_visitor_cookie_id,
                 visit_id,
+                dt|| '-' || visit_id as dist_visit,
                 attribute
 FROM s3_audience.publisher
 WHERE dt = REPLACE('2022-01-15', '-', '')
   AND destination = 'PS_NEWS'
   AND unique_visitor_cookie_id IN (SELECT DISTINCT unique_visitor_cookie_id FROM vb_users_chrys)
+  AND visit_id IN (SELECT DISTINCT visit_id FROM vb_users_chrys)
   AND placement = 'news.discovery.page'
   AND attribute = 'top-stories~carousel-scroll-start'
   AND publisher_clicks = 1
 ;
+
+SELECT * FROM pub_data ORDER BY dt, visit_id LIMIT 10;
 
 DROP TABLE IF EXISTS vb_carousel_usage;
 --CREATE TABLE vb_carousel_usage as
@@ -197,11 +206,12 @@ INSERT INTO vb_carousel_usage
 SELECT a.dt,a.visit_id, a.app_type, b.unique_visitor_cookie_id, b.attribute, mobile_device_manufacturer
 FROM vb_users_chrys a
 LEFT JOIN pub_data b on a.dt = b.dt AND a.visit_id = b.visit_id
+WHERE a.dt = (SELECT distinct dt FROM pub_data)
 ;
---DELETE FROM vb_carousel_usage_2;
+--DELETE FROM vb_carousel_usage;
 
 SELECT dt, count(*) as rows, count(distinct dt||visit_id) as visits FROM vb_carousel_usage gROUP BY 1 ORDER BY 1;
-SELECT * FROM vb_carousel_usage;
+SELECT * FROM vb_carousel_usage LIMIT 100;
 
 -- attribute = 'top-stories~carousel-scroll-reached-end'
 -- attribute = 'top-stories~carousel-scroll-start'
@@ -217,14 +227,14 @@ SELECT count(*) FROM central_insights_sandbox.pub_data;
 -- summarise
 SELECT dt,
        CASE WHEN attribute ISNULL THEN 'no_scroll' ELSE 'scroll' END                   as carousel,
-       CASE WHEN mobile_device_manufacturer = 'Apple' THEN 'iPhone' ELSE 'android' end as device_type
-        ,
+       --CASE WHEN mobile_device_manufacturer = 'Apple' THEN 'iPhone' ELSE 'android' end as device_type
+
        count(*)                                                                        as visits
-FROM vb_carousel_usage_2
-GROUP BY 1, 2, 3
+FROM vb_carousel_usage
+GROUP BY 1, 2
 ;
 
-SELECT DISTINCT mobile_device_manufacturer FROM  vb_carousel_usage_2;
+
 --- How many people are weekly/monthly
 --central_insights.sg10026_info_individual_alltime
 
