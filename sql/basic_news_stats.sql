@@ -235,29 +235,36 @@ GROUP BY 1, 2
 ;
 
 
---- How many people are weekly/monthly
+------------ How many people are weekly/monthly ---------------
 --central_insights.sg10026_info_individual_alltime
 
 -- people in the table
+DROP TABLE IF EXISTS vb_news_freq_seg;
 CREATE TABLE vb_news_freq_seg AS
 SELECT distinct date_of_segmentation,
+                segvalue,
                 CASE
-                    WHEN upper(left(segvalue, 1)) IN ('A', 'B', 'C') then 'weekly'
-                    WHEN upper(left(segvalue, 1)) IN ('D', 'E') then 'infrequent'
+                    WHEN upper(left(segvalue, 1)) IN ('A' ) then 'daily'
+                    WHEN upper(left(segvalue, 1)) IN ('B', 'C') then 'weekly'
+                    WHEN upper(left(segvalue, 1)) IN ('D') then 'fortnightly'
+                    WHEN upper(left(segvalue, 1)) IN ('E') then 'monthly'
                     WHEN upper(left(segvalue, 1)) IN ('F') then 'less than monthly'
                     WHEN upper(left(segvalue, 1)) IN ('G', 'H', 'I') then '13 weeks+'
                     WHEN segvalue IS NULL THEN 'new'
                     ELSE 'unknown' END as frequency_group,
-                 count(bbc_hid3)
+                 count(distinct bbc_hid3) as users
 FROM central_insights.sg10026_info_individual_alltime
 WHERE date_of_segmentation >  '20220115' AND date_of_segmentation <= '20220331'
   AND product = 'news'
-GROUP BY 1,2
+GROUP BY 1,2,3
 ORDER BY 1
 ;
 
--- people who actively used in those weeks
 
+SELECT segvalue, frequency_group, sum(count) FROM vb_news_freq_seg GROUP BY 1,2
+ORDER BY 1,2;
+-- people who actively used in those weeks
+SELECT distinct date_of_segmentation FROM vb_news_freq_seg;
 
 SELECT DISTINCT date_of_segmentation, count(bbc_hid3)
 FROM central_insights.sg10026_info_individual_alltime
@@ -266,4 +273,69 @@ WHERE date_of_segmentation > '20220115' AND date_of_segmentation <= '20220331'
 GROUP BY 1
 ORDER BY 1
 ;
-SELECT * FROM vb_news_daily LIMIT 10;
+DROP TABLE IF EXISTS vb_news_freq_users;
+CREATE TABLE vb_news_freq_users AS
+SELECT distinct date_of_segmentation,
+                segvalue,
+                CASE
+                    WHEN upper(left(segvalue, 1)) IN ('A' ) then 'daily'
+                    WHEN upper(left(segvalue, 1)) IN ('B', 'C') then 'weekly'
+                    WHEN upper(left(segvalue, 1)) IN ('D') then 'fortnightly'
+                    WHEN upper(left(segvalue, 1)) IN ('E') then 'monthly'
+                    WHEN upper(left(segvalue, 1)) IN ('F') then 'less than monthly'
+                    WHEN upper(left(segvalue, 1)) IN ('G', 'H', 'I') then '13 weeks+'
+                    WHEN segvalue IS NULL THEN 'new'
+                    ELSE 'unknown' END as frequency_group,
+                 bbc_hid3
+FROM central_insights.sg10026_info_individual_alltime
+WHERE date_of_segmentation >  '20220115' AND date_of_segmentation <= '20220331'
+  AND product = 'news'
+ORDER BY 1
+;
+SELECT count(*) FROM vb_news_freq_users;--322,459,372
+SELECT DISTINCt date_of_segmentation FROM vb_news_freq_users;
+
+SELECT *,
+       date_trunc('week', date_of_event) as week_commencing
+FROM vb_news_daily
+WHERE date_of_event >= '2022-03-30'
+LIMIT 10;
+
+SELECT * FROM vb_news_freq_seg;
+--- create table with each week, the frequency and each user (and their demographics)
+DROP TABLE vb_news_segs;
+CREATE TABLE vb_news_segs as
+SELECT distinct LEFT(date_trunc('week', date_of_event), 10)::date as week_commencing,
+                app_type,
+                gender,
+                age_range,
+                acorn_cat,
+                ISNULL(b.segvalue, 'new') as segvalue,
+                ISNULL(b.frequency_group,'new') as freq_group,
+                audience_id
+FROM vb_news_pages a
+         LEFT JOIN vb_news_freq_users b
+              on a.audience_id = b.bbc_hid3 AND LEFT(date_trunc('week', date_of_event), 10)::date = b.date_of_segmentation
+;
+--these are not complete weeks with my date range so remove them
+DELETE FROM vb_news_segs WHERE week_commencing = '2022-01-10';
+DELETE FROM vb_news_segs WHERE week_commencing = '2022-03-28';
+
+SELECT count(*) FROM vb_news_segs;--60,445,131
+SELECT distinct freq_group FROM vb_news_segs LIMIT 10;
+
+
+
+SELECT app_type,
+       week_commencing,
+       freq_group,
+       count(distinct audience_id) as users
+FROM vb_news_segs
+WHERE freq_group = 'new'
+GROUP BY 1,2,3
+ORDER BY 1 ,2
+;
+
+
+
+

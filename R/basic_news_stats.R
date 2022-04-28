@@ -378,4 +378,197 @@ make_graph(
 
 
 
+######### Frequency segments ###########
+
+## for all users listed
+data <- dbGetQuery(
+  conn,
+"SELECT date_of_segmentation as dt,
+segvalue,
+frequency_group as freq_group,
+count as users
+FROM central_insights_sandbox.vb_news_freq_seg
+ORDER BY segvalue;"
+)
+
+
+data %>% head()
+data %>% summary()
+data$dt <- ymd(data$dt)
+data$users<- as.numeric(data$users)
+data$freq_group<-factor(data$freq_group,
+                        levels = c(
+                          '13 weeks+',
+                          'less than monthly',
+                          'monthly',
+                          'fortnightly',
+                          'weekly',
+                          'daily'
+                          ))
+
+data$segvalue <- factor(
+  data$segvalue,
+  levels = c(
+    'I. dormant',
+    'H. last seen 26-52 weeks ago',
+    'G. last seen 13-26 weeks ago',
+    'F. less than monthly',
+    'E. monthly',
+    'D. fortnightly',
+    'C. 1-2 days per week',
+    'B. 2-5 days per week',
+    'A. daily (5+ days per week)'
+  )
+)
+
+data %>% 
+  arrange(dt, segvalue) %>% 
+  group_by(segvalue) %>% 
+  summarise(avg_users = mean(users)) %>% 
+  mutate(perc = avg_users/sum(avg_users),
+         dummy = 1)
+
+
+# ggplot(data = data %>%
+#          arrange(dt, segvalue) %>%
+#          group_by(segvalue) %>%
+#          summarise(avg_users = mean(users)) %>%
+#          mutate(perc = round(100*avg_users/sum(avg_users),0),
+#                 dummy = 1),
+#        aes(x = dummy, y = avg_users/1000000, fill = segvalue)
+#        )+
+#   geom_col(inherit.aes = TRUE,position = "stack", show.legend = TRUE)+
+#   ylab("Average users (million)") +
+#   labs(fill="Segment")+
+#   labs(title = "BBC News accounts in each frequency group averaged over 11 weeks \n (w/c 2022-01-17 to 2022-03-28) ") +
+#   geom_text(aes(label = paste0(comma(signif(avg_users/1000000,2))," mil (", perc , "%)")),
+#             position = position_stack(vjust = 0.5),
+#             colour = "black")+
+#   scale_y_continuous(label = comma,
+#                      n.breaks = 20
+#   ) +
+#   scale_fill_brewer(palette="Blues")+
+#   theme(
+#         axis.title.x = element_blank(),
+#         axis.text.x = element_blank(),
+#         axis.ticks.x = element_blank())+
+# guides(fill = guide_legend(reverse=T))
+
+ggplot(data = data %>%
+         arrange(dt, freq_group) %>%
+         group_by(dt,freq_group) %>%
+         summarise(users = sum(users)) %>%
+         group_by(freq_group) %>%
+         summarise(avg_users = mean(users)) %>%
+         mutate(perc = round(100*avg_users/sum(avg_users),0),
+                dummy = 1),
+       aes(x = dummy, y = avg_users/1000000, fill = freq_group)
+)+
+  geom_col(inherit.aes = TRUE,position = "stack", show.legend = TRUE)+
+  ylab("Average users (million)") +
+  labs(fill="Frequency Group")+
+  labs(title = "BBC News accounts in each frequency group averaged over 11 weeks \n (w/c 2022-01-17 to 2022-03-28) ") +
+  geom_text(aes(label = paste0(comma(signif(avg_users/1000000,2))," mil (", perc , "%)")),
+            position = position_stack(vjust = 0.5),
+            colour = "black")+
+  scale_y_continuous(label = comma,
+                     n.breaks = 20
+  ) +
+  scale_fill_brewer(palette="Reds")+
+  theme(
+    axis.title.x = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank())+
+  guides(fill = guide_legend(reverse=T))
+
+
+####### for only active users
+data <- dbGetQuery(
+  conn,
+  "SELECT app_type,
+  week_commencing,
+       freq_group,
+       count(distinct audience_id) as users
+FROM central_insights_sandbox.vb_news_segs
+GROUP BY 1,2,3
+ORDER BY 1 ,2;"
+)
+
+
+data %>% head()
+data %>% summary()
+data$users<- as.numeric(data$users)
+data$freq_group<-factor(data$freq_group,
+                        levels = c("new",
+                          '13 weeks+',
+                          'less than monthly',
+                          'monthly',
+                          'fortnightly',
+                          'weekly',
+                          'daily'
+                        ))
+data$app_type<-factor(data$app_type,levels = c('web','app', 'chrysalis') )
+
+
+plot_data <- data %>%
+  arrange(app_type, week_commencing, freq_group) %>%
+  group_by(app_type, freq_group) %>%
+  summarise(avg_users = mean(users)) %>%
+  mutate(perc = round(100 * avg_users / sum(avg_users), 1),
+         dummy = 1)
+
+### Graph to show the % of users (averaged weekly) that are in each frequency group
+
+ggplot(data = plot_data,
+       aes(x = dummy, y = signif(avg_users,2), fill = app_type, 
+           
+           )
+)+
+  geom_col( inherit.aes = TRUE,
+            aes(alpha = freq_group),
+           position = "stack", 
+           show.legend = TRUE)+
+  ylab("Average users") +
+  labs(alpha="Frequency Group")+
+  labs(title = "Frequency of BBC News (signed in) users averaged over 11 weeks \n (w/c 2022-01-17 to 2022-03-28) ") +
+  geom_text(aes(#alpha  = NULL,
+                #fill= freq_group,
+    group = freq_group,
+                label = ifelse(plot_data$perc>1, paste0(comma(signif(plot_data$avg_users,2)) ," (", 
+                                      plot_data$perc,
+                                      "%)"),""
+                )
+                ),
+            position = position_stack(vjust = 0.5),
+            colour = "black"
+            )+
+  scale_y_continuous(label = comma,
+                     n.breaks = 20
+  ) +
+  #scale_fill_brewer(palette="rgb")+
+  theme(
+    axis.title.x = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank())+
+  guides(fill = "none",
+         alpha= guide_legend(reverse=T)
+         )+
+  facet_wrap(~app_type,scales = "free_y" )
+
+
+
+plot_data$avg_users[plot_data$perc>1]
+
+if(plot_data$perc > 5.0) {
+  paste0(comma(signif(plot_data$avg_users, 2)) , " (",
+         plot_data$perc,
+         "%)")
+}else{
+  ""
+}
+
+
+
+
+
 
