@@ -33,6 +33,7 @@ conn <- dbConnect(driver, url)
 # test that it works:
 dbGetQuery(conn,"select distinct brand_title, series_title from prez.scv_vmb ORDER BY RANDOM() limit 10;")
 
+
 ######## Basic Demographics ########
 data<-dbGetQuery(conn, "SELECT * FROM central_insights_sandbox.vb_news_basics;")
 data$users<-as.numeric(data$users)
@@ -48,7 +49,7 @@ data %>% head()
 #  chrysalis  female       55+       02_Rising Prosperity    428
 #        app    male     45-54                    unknown   3564
 
-##### function to make the graphs #####
+##### function to make the stacked bar graphs #####
 
 make_graph <- function(df, #the input data
                        plotted_measure = 'users',
@@ -296,7 +297,7 @@ ggplot(data= plot_data, aes(x = dt, colour = !!sym(field_to_split_by)) )+
   geom_text_repel(data = plot_data %>% filter(dt ==  ymd('2022-03-31')),
              mapping = aes(x = ymd('2022-03-31'),
                            y = plot_data$mean[plot_data$dt == ymd('2022-03-31')], 
-                           label = paste0(comma(plot_data$mean[plot_data$dt == ymd('2022-03-31')])," (", plot_data$mean_perc[plot_data$dt == ymd('2022-03-31')])
+                           label = paste0(comma(plot_data$mean[plot_data$dt == ymd('2022-03-31')])," (", plot_data$mean_perc[plot_data$dt == ymd('2022-03-31')],")")
                                           ),
              hjust = "right",
              colour = "black") +
@@ -518,7 +519,6 @@ plot_data <- data %>%
          dummy = 1)
 
 ### Graph to show the % of users (averaged weekly) that are in each frequency group
-
 ggplot(data = plot_data,
        aes(x = dummy, y = signif(avg_users,2), fill = app_type, 
            
@@ -566,6 +566,142 @@ if(plot_data$perc > 5.0) {
 }else{
   ""
 }
+
+
+##### basically same but for gender
+data <- dbGetQuery(
+  conn,
+  "SELECT gender,
+  week_commencing,
+       freq_group,
+       count(distinct audience_id) as users
+FROM central_insights_sandbox.vb_news_segs
+GROUP BY 1,2,3
+ORDER BY 1 ,2;"
+)
+
+
+data %>% head()
+data %>% summary()
+data$users<- as.numeric(data$users)
+data$freq_group<-factor(data$freq_group,
+                        levels = c("new",
+                                   '13 weeks+',
+                                   'less than monthly',
+                                   'monthly',
+                                   'fortnightly',
+                                   'weekly',
+                                   'daily'
+                        ))
+data$app_type<-factor(data$app_type,levels = c('web','app', 'chrysalis') )
+
+
+plot_data <- data %>% filter(gender!='unknown') %>% 
+  arrange(gender, week_commencing, freq_group) %>%
+  group_by(gender, freq_group) %>%
+  summarise(avg_users = mean(users)) %>%
+  mutate(perc = round(100 * avg_users / sum(avg_users), 1),
+         dummy = 1)
+plot_data
+### Graph to show the % of users (averaged weekly) that are in each frequency group
+ggplot(data = plot_data,
+       aes(x = dummy, y = signif(avg_users,2), fill = gender, 
+           
+       )
+)+
+  geom_col( inherit.aes = TRUE,
+            aes(alpha = freq_group),
+            position = "stack", 
+            show.legend = TRUE)+
+  ylab("Average users") +
+  labs(alpha="Frequency Group")+
+  labs(title = "Frequency of BBC News (signed in) users averaged over 11 weeks \n (w/c 2022-01-17 to 2022-03-28) ") +
+  geom_text(aes(#alpha  = NULL,
+    #fill= freq_group,
+    group = freq_group,
+    label = ifelse(plot_data$perc>1, paste0(comma(signif(plot_data$avg_users,2)) ," (", 
+                                            plot_data$perc,
+                                            "%)"),""
+    )
+  ),
+  position = position_stack(vjust = 0.5),
+  colour = "black"
+  )+
+  scale_y_continuous(label = comma,
+                     n.breaks = 20
+  ) +
+  scale_fill_manual(
+                    values = wes_palette(2, name = "GrandBudapest1"))+
+  theme(
+    axis.title.x = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank())+
+  guides(fill = "none",
+         alpha= guide_legend(reverse=T)
+  )+
+  facet_wrap(~gender,scales = "free_y" )
+
+
+
+plot_data$avg_users[plot_data$perc>1]
+
+if(plot_data$perc > 5.0) {
+  paste0(comma(signif(plot_data$avg_users, 2)) , " (",
+         plot_data$perc,
+         "%)")
+}else{
+  ""
+}
+
+
+####### signed in people #######
+data<-dbGetQuery(conn, "SELECT * FROM central_insights_sandbox.vb_signed_in_status WHERE app_type IS NOT NULL ;")
+data$users<-as.numeric(data$users)
+data$visits<-as.numeric(data$visits)
+data$app_type<-factor(data$app_type,levels = c('web','app', 'chrysalis') )
+data %>% head()
+
+
+x_axis_dates <- ymd(c(
+  '2022-01-15',
+  '2022-01-20',
+  '2022-01-25',
+  '2022-01-30',
+  '2022-02-04',
+  '2022-02-09',
+  '2022-02-14',
+  '2022-02-19',
+  '2022-02-24',
+  '2022-03-01',
+  '2022-03-06',
+  '2022-03-11',
+  '2022-03-16',
+  '2022-03-21',
+  '2022-03-26',
+  '2022-03-31'
+))
+war_label <- data.frame(
+  label = c("Russia invades Ukraine", "", ""),
+  app_type   = factor(c('web','app', 'chrysalis'), levels =c('web','app', 'chrysalis'))
+)
+
+data$app_type %>% unique()
+
+  make_line_graph(  df = data,
+                    plotted_measure = "users",
+                    comparison_measure = "app_type",
+                    field_to_split_by = "is_signed_in",
+                    graph_title = "Users split by signed in status for BBC News (2022-01-15 to 2022-03-31)",
+                    # colour_palette = "Darjeeling1",
+                    # palette_family = 'wes_anderson',
+                    # n_colours = 5
+  )
+
+
+
+
+
+
 
 
 

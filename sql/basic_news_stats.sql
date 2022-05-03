@@ -322,7 +322,7 @@ DELETE FROM vb_news_segs WHERE week_commencing = '2022-01-10';
 DELETE FROM vb_news_segs WHERE week_commencing = '2022-03-28';
 
 SELECT count(*) FROM vb_news_segs;--60,445,131
-SELECT distinct freq_group FROM vb_news_segs LIMIT 10;
+SELECT * FROM vb_news_segs LIMIT 10;
 
 
 
@@ -335,6 +335,40 @@ WHERE freq_group = 'new'
 GROUP BY 1,2,3
 ORDER BY 1 ,2
 ;
+
+
+------ What % are signed in?
+CREATE TABLE vb_signed_in_status as
+with get_data as (SELECT DISTINCT dt::date,
+                               CASE
+                                   WHEN app_name ILIKE '%chrysalis%' THEN 'chrysalis'
+                                   WHEN app_type = 'responsive' OR app_type = 'web' OR app_type = 'amp' THEN 'web'
+                                   WHEN app_type = 'mobile-app' THEN 'app'
+                                   ELSE app_name END     as app_type,
+                               CASE
+                                   WHEN is_personalisation_on = TRUE and is_signed_in = TRUE THEN 'signed_in'
+                                   ELSE 'signed_out' END as is_signed_in,
+                               audience_id,
+                               visit_id
+    FROM s3_audience.audience_activity
+WHERE destination = 'PS_NEWS'
+  AND dt BETWEEN (SELECT REPLACE(min_date, '-', '') FROM vb_dates) AND (SELECT REPLACE(max_date, '-', '') FROM vb_dates)
+  AND geo_country_site_visited = 'United Kingdom'
+  AND app_type IS NOT NULL
+)
+SELECT dt::date, app_type, is_signed_in,
+                count(distinct audience_id) as users,
+                count(distinct dt||visit_id) as visits
+FROM get_data
+GROUP BY 1,2,3
+ORDER BY app_type,dt, is_signed_in
+;
+--BETWEEN (SELECT REPLACE(min_date, '-', '') FROM vb_dates) AND (SELECT REPLACE(max_date, '-', '') FROM vb_dates)
+
+SELECT app_type, sum(users)
+FROM vb_signed_in_status
+group by 1
+LIMIT 10;
 
 
 
