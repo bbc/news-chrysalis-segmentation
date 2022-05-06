@@ -61,3 +61,6 @@ data/
 # Virtualenv (renv)
 renv/library/
 renv/*.ignore
+
+# pycache
+*__pycache__
