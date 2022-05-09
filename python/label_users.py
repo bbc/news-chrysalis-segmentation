@@ -33,7 +33,7 @@ SQL_COLS = [
 SQL_QUERY = """
 SELECT {} FROM central_insights_sandbox.ed_uk_news_seg_features 
 ORDER BY RANDOM() 
-LIMIT 10;
+LIMIT 100;
 """.format(', '.join(SQL_COLS)).strip()
 
 
@@ -44,13 +44,21 @@ if __name__ == '__main__':
 
     print(f'Read in features: {feature_table.shape}')
 
+    # Load the model in
     pipe = load('trained_model.joblib')
 
     print('Loaded model')
 
+    # Use the pipeline to predict labels for each user in the data loaded in
     labels = pipe.predict(feature_table.values)
     labels = pd.Series(labels, index=feature_table.index)
-    
-    labels.to_csv('user_labels.csv')
+
+    # Convert labels to dataframe for writing to SQL table
+    labels = labels.reset_index()
+    labels.columns = ['audience_id', 'segment']
+
+    # Write the labels to a redshift table
+    # This might need pointing to a segserver at some point but I have no idea how to do that
+    db.write_df_to_db(labels, 'central_insights_sandbox', 'ed_uk_user_taste_segments')
 
     print('Saved user labels')
