@@ -61,3 +61,5 @@ data/
 # Virtualenv (renv)
 renv/library/
 renv/*.ignore
+
+venv/*
