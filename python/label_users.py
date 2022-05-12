@@ -9,43 +9,31 @@ from sklearn.cluster import KMeans
 from joblib import load
 
 
-SQL_COLS = [
-    "audience_id", 
-    "totalnews",
-    "world_prop",
-    "england_prop",
-    "uk_prop",
-    "politics_prop",
-    "business_prop",
-    "scotland_prop",
-    "entertainment_prop",
-    "wales_prop",
-    "technology_prop",
-    "newsbeat_prop",
-    "health_prop",
-    "science_prop",
-    "n_ireland_prop",
-    "education_prop",
-    "sport_prop",
-    "disability_prop"
-]
+TABLE_NAME = "central_insights_sandbox.ed_current_data_to_segment"
+MODEL_FP = "models/trained_model.joblib"
+SCHEMA_NAME = "central_insights_sandbox"
+OUT_TABLE = "ed_uk_user_taste_segments"
 
-SQL_QUERY = """
-SELECT {} FROM central_insights_sandbox.ed_uk_news_seg_features 
-ORDER BY RANDOM() 
-LIMIT 100;
-""".format(', '.join(SQL_COLS)).strip()
+# SQL query for pulling out features
+SQL_QUERY = f"""
+SELECT audience_id, page_section, topic_perc
+FROM {TABLE_NAME}
+UNION
+SELECT DISTINCT 'dummy'::varchar as audience_id, page_section, 0::double precision as topic_perc FROM {TABLE_NAME} ORDER BY 2;
+""".strip()
 
 
 if __name__ == '__main__':
     db = Databases()
     feature_table = db.read_from_db(SQL_QUERY)
-    feature_table = feature_table.set_index('audience_id')
+    feature_table = feature_table.set_index(['audience_id', 'page_section'])
+    feature_table = feature_table.unstack('page_section', fill_value=0)
+    feature_table = feature_table.loc[feature_table.index != 'dummy']
 
     print(f'Read in features: {feature_table.shape}')
 
     # Load the model in
-    pipe = load('trained_model.joblib')
+    pipe = load(MODEL_FP)
 
     print('Loaded model')
 
@@ -59,6 +47,6 @@ if __name__ == '__main__':
 
     # Write the labels to a redshift table
     # This might need pointing to a segserver at some point but I have no idea how to do that
-    db.write_df_to_db(labels, 'central_insights_sandbox', 'ed_uk_user_taste_segments')
+    db.write_df_to_db(labels, SCHEMA_NAME, OUT_TABLE)
 
     print('Saved user labels')

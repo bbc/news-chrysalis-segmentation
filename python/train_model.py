@@ -2,53 +2,39 @@ import pandas as pd
 from db_query import Databases
 
 from sklearn.decomposition import PCA
-from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from sklearn.pipeline import FeatureUnion, Pipeline
 from sklearn.cluster import KMeans
 
 from joblib import dump
 
-
-SQL_COLS = [
-    "audience_id", 
-    "totalnews",
-    "world_prop",
-    "england_prop",
-    "uk_prop",
-    "politics_prop",
-    "business_prop",
-    "scotland_prop",
-    "entertainment_prop",
-    "wales_prop",
-    "technology_prop",
-    "newsbeat_prop",
-    "health_prop",
-    "science_prop",
-    "n_ireland_prop",
-    "education_prop",
-    "sport_prop",
-    "disability_prop"
-]
+TABLE_NAME = "central_insights_sandbox.ed_page_topics_perc"
+MODEL_FP = "models/trained_model.joblib"
 
 # SQL query for pulling out features
-SQL_QUERY = """
-SELECT {} FROM central_insights_sandbox.ed_uk_news_seg_features 
-ORDER BY RANDOM() 
-LIMIT 100000;
-""".format(', '.join(SQL_COLS)).strip()
+SQL_QUERY = f"""
+SELECT audience_id, page_section, topic_perc
+FROM {TABLE_NAME}
+WHERE audience_id IN
+      (SELECT DISTINCT audience_id FROM {TABLE_NAME} ORDER BY RANDOM() LIMIT 1000000)
+UNION
+SELECT DISTINCT 'dummy'::varchar as audience_id, page_section, 0::double precision as topic_perc FROM {TABLE_NAME} ORDER BY 2;
+""".strip()
 
 
 if __name__ == '__main__':
     # Read in the feature table for training the model
     db = Databases()
     feature_table = db.read_from_db(SQL_QUERY)
-    feature_table = feature_table.set_index('audience_id')
+    feature_table = feature_table.set_index(['audience_id', 'page_section'])
+    feature_table = feature_table.unstack('page_section', fill_value=0)
+    feature_table = feature_table.loc[feature_table.index != 'dummy']
 
     print(f'Read in features: {feature_table.shape}')
 
     # SKLearn pipeline which scales, reduces, and clusters the features it is given
     pipe = Pipeline([
-                        ('Scaler', MinMaxScaler()),
+                        ('Scaler', StandardScaler()),
                         ('PCA', PCA(n_components=5)),
                         ('Cluster', KMeans(n_clusters=5, random_state=0))
                     ])
@@ -59,7 +45,7 @@ if __name__ == '__main__':
     print('Fitted model')
 
     # Dump the fitted pipeline to a file
-    dump(pipe, 'trained_model.joblib')
+    dump(pipe, MODEL_FP)
 
     print('Dumped model')
     
