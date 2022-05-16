@@ -8,7 +8,7 @@ from sklearn.cluster import KMeans
 
 from joblib import dump
 
-TABLE_NAME = "central_insights_sandbox.ed_page_topics_perc"
+TABLE_NAME = "central_insights_sandbox.ed_current_data_to_segment"
 MODEL_FP = "models/trained_model.joblib"
 
 # SQL query for pulling out features

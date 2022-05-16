@@ -7,19 +7,19 @@ CREATE TABLE ed_dates (
     max_date date
 );
 
-INSERT INTO ed_dates VALUES (cast('<params.date>'::varchar AS date)-28, cast('<params.date>'::varchar AS date))
+INSERT INTO ed_dates VALUES (cast('<params.date>'::varchar AS date)-(cast('<params.num_days>'::varchar AS int), cast('<params.date>'::varchar AS date))
+-- INSERT INTO ed_dates VALUES ('2022-01-17', '2022-02-14')
 ;
 
 CREATE TEMP TABLE ed_page_topics as
 with get_pages as (
     SELECT DISTINCT dt, visit_id, audience_id, page_name, page_section
     FROM s3_audience.audience_activity
-    WHERE dt BETWEEN (SELECT REPLACE(min_date, '-', '') FROM vb_dates) AND (SELECT REPLACE(max_date, '-', '') FROM vb_dates)
+    WHERE dt BETWEEN (SELECT REPLACE(min_date, '-', '') FROM ed_dates) AND (SELECT REPLACE(max_date, '-', '') FROM ed_dates)
       AND destination = 'PS_NEWS'
       AND is_signed_in = TRUE
       and is_personalisation_on = TRUE
       AND page_section NOT ILIKE 'name=%'
-
 )
 SELECT audience_id, page_section, count(*) as topic_count
 FROM get_pages

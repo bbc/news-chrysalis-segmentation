@@ -10,6 +10,7 @@ from joblib import load
 
 
 TABLE_NAME = "central_insights_sandbox.ed_current_data_to_segment"
+# TEST_SAMPLE_TABLE_NAME = "central_insights_sandbox.ed_current_segmentation_test_sample"
 MODEL_FP = "models/trained_model.joblib"
 SCHEMA_NAME = "central_insights_sandbox"
 OUT_TABLE = "ed_uk_user_taste_segments"
