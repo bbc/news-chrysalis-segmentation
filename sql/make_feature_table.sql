@@ -7,7 +7,7 @@ CREATE TABLE ed_dates (
     max_date date
 );
 
-INSERT INTO ed_dates VALUES (cast('<params.date>'::varchar AS date)-(cast('<params.num_days>'::varchar AS int), cast('<params.date>'::varchar AS date))
+INSERT INTO ed_dates VALUES (cast('<params.date>'::varchar AS date)-(cast('<params.num_days>'::varchar AS int)), cast('<params.date>'::varchar AS date))
 -- INSERT INTO ed_dates VALUES ('2022-01-17', '2022-02-14')
 ;
 
