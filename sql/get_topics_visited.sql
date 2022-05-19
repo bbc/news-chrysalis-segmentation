@@ -6,9 +6,10 @@ CREATE TABLE vb_dates (
     min_date date,
     max_date date
 );
-INSERT INTO vb_dates VALUES ('2022-01-17', '2022-02-14');
+INSERT INTO vb_dates VALUES ('2022-01-17', '2022-03-14');
 SELECT * FROM vb_dates;
 
+DROP TABLE IF EXISTS vb_page_topics;
 CREATE TEMP TABLE vb_page_topics as
 with get_pages as (
     SELECT DISTINCT dt, visit_id, audience_id, page_name,
@@ -19,7 +20,6 @@ with get_pages as (
       AND is_signed_in = TRUE
       and is_personalisation_on = TRUE
       AND page_section NOT ILIKE 'name=%'
-
 )
 SELECT audience_id,
        CASE
@@ -77,6 +77,38 @@ SELECT audience_id,
                                  'north_west_wales',
                                  'south_east_wales',
                                  'south_west_wales') THEN 'region_wales'
+           WHEN page_section IN ('american_football',
+                                 'athletics',
+                                 'basketball',
+                                 'baseball',
+                                 'bowls',
+                                 'boxing',
+                                 'commonwealth_games',
+                                 'cricket',
+                                 'cycling',
+                                 'darts',
+                                 'disability_sport',
+                                 'equestrian',
+                                 'formula1',
+                                 'golf',
+                                 'gaelic_games',
+                                 'gymnastics',
+                                 'hockey',
+                                 'horse_racing',
+                                 'ice_hockey',
+                                 'karate',
+                                 'motorsport',
+                                 'mixed_martial_arts',
+                                 'netball',
+                                 'olympics',
+                                 'rugby_league',
+                                 'rugby_union',
+                                 'snooker',
+                                 'swimming',
+                                 'squash',
+                                 'tennis',
+                                 'winter_olympics',
+                                 'winter_sports') THEN 'sport'
            ELSE page_section END as page_section,
 
        count(*)                  as topic_count
@@ -84,7 +116,11 @@ FROM get_pages
 GROUP BY 1, 2
 ORDER BY 1, 3
 ;
+
+-- ice_hockey, karate, mixed_martial_arts
+--
 --remove any topic with less than 100 visits
+DROP TABLE IF EXISTS vb_section_usage;
 CREATE TEMP TABLE vb_section_usage as
 SELECT page_section, count(distinct audience_id) as users, sum(topic_count) as count  FROM vb_page_topics GROUP BY 1
 HAVING count <1000
@@ -93,14 +129,14 @@ ORDER BY 3 desc;
 DELETE FROM vb_page_topics WHERE page_section IN (SELECT page_section FROM vb_section_usage );
 
 --checks
-SELECT * FROM vb_page_topics ORDER BY audience_id, topic_count DESC LIMIT 10;
-SELECT count(distinct audience_id) FROM vb_page_topics  LIMIT 10; --9,275,293
-SELECT count(*) FROM vb_page_topics  LIMIT 10; --82,048,718
+--SELECT * FROM vb_page_topics ORDER BY audience_id, topic_count DESC LIMIT 10;
+--SELECT count(distinct audience_id) FROM vb_page_topics  LIMIT 10; -- 12,078,477
+--SELECT count(*) FROM vb_page_topics  LIMIT 10; --78,325,452
 
 
 
-DROP TABLE IF EXISTS vb_page_topics_perc;
-CREATE TABLE vb_page_topics_perc as
+DROP TABLE IF EXISTS vvb_page_topics_perc;
+CREATE TABLE vvb_page_topics_perc as
 with total_count as (SELECT audience_id, sum(topic_count) as total_count FROM vb_page_topics GROUP BY 1)
 SELECT a.*, a.topic_count::double precision / b.total_count::double precision as topic_perc, trunc(topic_perc,3)
 FROM vb_page_topics a
@@ -110,25 +146,27 @@ ORDER BY a.audience_id
 
 
 --checks
-SELECT DISTINCT 'dummy'::varchar as audience_id, page_section, 0::double precision as topic_perc FROM central_insights_sandbox.vb_page_topics_perc ORDER BY 2;
-SELECT count(distinct page_section) FROM vb_page_topics_perc    LIMIT 10;--67
-SELECT * FROM central_insights_sandbox.vb_page_topics_perc    LIMIT 10;
-SELECT count(*) FROM vb_page_topics_perc    LIMIT 10;--82,048,718
+SELECT DISTINCT 'dummy'::varchar as audience_id, page_section, 0::double precision as topic_perc FROM central_insights_sandbox.vvb_page_topics_perc ORDER BY 2;
+SELECT distinct page_section FROM vvb_page_topics_perc    LIMIT 10;--47
+SELECT * FROM central_insights_sandbox.vvb_page_topics_perc    LIMIT 10;
+SELECT count(*) FROM vvb_page_topics_perc    LIMIT 10;--78,325,452
 
 
 -- to read into python
 SELECT audience_id, page_section, topic_perc
-FROM central_insights_sandbox.vb_page_topics_perc
+FROM central_insights_sandbox.vvb_page_topics_perc
 WHERE audience_id IN
-      (SELECT DISTINCT audience_id FROM central_insights_sandbox.vb_page_topics_perc ORDER BY RANDOM() LIMIT 1000)
+      (SELECT DISTINCT audience_id FROM central_insights_sandbox.vvb_page_topics_perc ORDER BY RANDOM() LIMIT 1000)
 UNION
-SELECT DISTINCT 'dummy'::varchar as audience_id, page_section, 0::double precision as topic_perc FROM central_insights_sandbox.vb_page_topics_perc ORDER BY 2;
+SELECT DISTINCT 'dummy'::varchar as audience_id, page_section, 0::double precision as topic_perc FROM central_insights_sandbox.vvb_page_topics_perc ORDER BY 2;
 
 
-GRANT ALL ON central_insights_sandbox.vb_page_topics_perc to edward_dearden;
-SELECT DISTINCT  page_section FROM central_insights_sandbox.vb_page_topics_perc ORDER BY 1;
+GRANT ALL ON central_insights_sandbox.vvb_page_topics_perc to edward_dearden;
+SELECT DISTINCT  page_section FROM central_insights_sandbox.vvb_page_topics_perc ORDER BY 1;
 
-
-
-
+SELECT page_section, sum(topic_count) as topic_count, count(distinct audience_id) as users
+FROM central_insights_sandbox.vvb_page_topics_perc
+GROUP BY 1
+ORDER BY 3 DESC
+;
 
