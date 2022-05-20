@@ -7,6 +7,8 @@ from sklearn.pipeline import FeatureUnion, Pipeline
 from sklearn.cluster import KMeans
 
 from joblib import load
+import requests
+import boto3
 
 
 TABLE_NAME = "central_insights_sandbox.ed_current_data_to_segment"
@@ -23,6 +25,14 @@ UNION
 SELECT DISTINCT 'dummy'::varchar as audience_id, page_section, 0::double precision as topic_perc FROM {TABLE_NAME} ORDER BY 2;
 """.strip()
 
+role_name = requests.get('http://169.254.169.254/latest/meta-data/iam/security-credentials/').text
+s3credentials = requests.get('http://169.254.169.254/latest/meta-data/iam/security-credentials/' + role_name).json()
+
+def download_from_s3(local_file_path, bucket_name, bucket_filepath):
+   s3 = boto3.client('s3')
+   with open(local_file_path, "wb") as f:
+       s3.download_fileobj(bucket_name, bucket_filepath, f)
+
 
 if __name__ == '__main__':
     db = Databases()
@@ -33,6 +43,8 @@ if __name__ == '__main__':
 
     print(f'Read in features: {feature_table.shape}')
 
+    # Download the model
+    download_from_s3(MODEL_FP, 'map_input_output', 'chrysalis-taste-segmentation/trained_model.joblib')
     # Load the model in
     pipe = load(MODEL_FP)
 
@@ -49,5 +61,5 @@ if __name__ == '__main__':
     # Write the labels to a redshift table
     # This might need pointing to a segserver at some point but I have no idea how to do that
     db.write_df_to_db(labels, SCHEMA_NAME, OUT_TABLE)
-
+    db.write_to_db(f'GRANT ALL ON {SCHEMA_NAME}.{OUT_TABLE} TO edward_dearden WITH GRANT OPTION;')
     print('Saved user labels')

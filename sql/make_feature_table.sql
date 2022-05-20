@@ -10,6 +10,7 @@ CREATE TABLE ed_dates (
 INSERT INTO ed_dates VALUES (cast('<params.date>'::varchar AS date)-(cast('<params.num_days>'::varchar AS int)), cast('<params.date>'::varchar AS date))
 -- INSERT INTO ed_dates VALUES ('2022-01-17', '2022-02-14')
 ;
+GRANT ALL ON ed_dates TO edward_dearden WITH GRANT OPTION;
 
 CREATE TEMP TABLE ed_page_topics as
 with get_pages as (
@@ -35,6 +36,8 @@ FROM ed_page_topics a
          JOIN total_count b on a.audience_id = b.audience_id
 ORDER BY a.audience_id
 ;
+GRANT ALL ON ed_current_data_to_segment TO edward_dearden WITH GRANT OPTION;
+
 
 -- -- to read into python
 -- SELECT audience_id, page_section, topic_perc

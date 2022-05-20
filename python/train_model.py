@@ -7,6 +7,9 @@ from sklearn.pipeline import FeatureUnion, Pipeline
 from sklearn.cluster import KMeans
 
 from joblib import dump
+import requests
+import boto3
+
 
 TABLE_NAME = "central_insights_sandbox.ed_current_data_to_segment"
 MODEL_FP = "models/trained_model.joblib"
@@ -20,6 +23,16 @@ WHERE audience_id IN
 UNION
 SELECT DISTINCT 'dummy'::varchar as audience_id, page_section, 0::double precision as topic_perc FROM {TABLE_NAME} ORDER BY 2;
 """.strip()
+
+
+role_name = requests.get('http://169.254.169.254/latest/meta-data/iam/security-credentials/').text
+s3credentials = requests.get('http://169.254.169.254/latest/meta-data/iam/security-credentials/' + role_name).json()
+
+
+def upload_to_s3(local_file_path, bucket_name, bucket_filepath):
+   s3 = boto3.client('s3')
+   with open(local_file_path, "rb") as f:
+       s3.upload_fileobj(f, bucket_name, bucket_filepath)
 
 
 if __name__ == '__main__':
@@ -46,6 +59,8 @@ if __name__ == '__main__':
 
     # Dump the fitted pipeline to a file
     dump(pipe, MODEL_FP)
+    # Upload pipeline to s3
+    upload_to_s3(MODEL_FP, 'map_input_output', 'chrysalis-taste-segmentation/trained_model.joblib')
 
     print('Dumped model')
     
