@@ -1,3 +1,4 @@
+
     BEGIN;
     set search_path TO 'central_insights_sandbox';
 
@@ -142,7 +143,3 @@
     GROUP BY 1
     ORDER BY 3 DESC
     ;
-
-
-
-
