@@ -111,16 +111,13 @@ ORDER BY a.audience_id
 
 --checks
 SELECT DISTINCT 'dummy'::varchar as audience_id, page_section, 0::double precision as topic_perc FROM central_insights_sandbox.vb_page_topics_perc ORDER BY 2;
-<<<<<<< Updated upstream
-SELECT count(distinct page_section) FROM vb_page_topics_perc    LIMIT 10;--67
-SELECT * FROM central_insights_sandbox.vb_page_topics_perc    LIMIT 10;
-SELECT count(*) FROM vb_page_topics_perc    LIMIT 10;--82,048,718
-=======
+
+
 SELECT distinct page_section FROM vb_page_topics_perc    LIMIT 10;--47
 SELECT * FROM central_insights_sandbox.vb_page_topics_perc    LIMIT 10;
 SELECT count(*) FROM vb_page_topics_perc    LIMIT 10;--78,325,452
 
->>>>>>> Stashed changes
+
 
 
 -- to read into python
@@ -130,16 +127,11 @@ WHERE audience_id IN
       (SELECT DISTINCT audience_id FROM central_insights_sandbox.vb_page_topics_perc ORDER BY RANDOM() LIMIT 1000)
 UNION
 SELECT DISTINCT 'dummy'::varchar as audience_id, page_section, 0::double precision as topic_perc FROM central_insights_sandbox.vb_page_topics_perc ORDER BY 2;
-<<<<<<< Updated upstream
+
 
 
 GRANT ALL ON central_insights_sandbox.vb_page_topics_perc to edward_dearden;
 SELECT DISTINCT  page_section FROM central_insights_sandbox.vb_page_topics_perc ORDER BY 1;
-
-
-
-
-=======
 
 
 GRANT ALL ON central_insights_sandbox.vb_page_topics_perc to edward_dearden;
@@ -150,7 +142,7 @@ FROM central_insights_sandbox.vb_page_topics_perc
 GROUP BY 1
 ORDER BY 3 DESC
 ;
->>>>>>> Stashed changes
+
 
 
 
