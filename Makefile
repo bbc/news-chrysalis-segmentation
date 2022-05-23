@@ -1,4 +1,4 @@
-.PHONY: shiny clean data lint requirements sync_data_to_s3 sync_data_from_s3 test
+.PHONY: clean data lint requirements sync_data_to_s3 sync_data_from_s3 test
 .DEFAULT_GOAL := help
 
 #################################################################################
@@ -6,79 +6,67 @@
 #################################################################################
 
 PROJECT_DIR := $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
-BUCKET = map-input-output/news_chrysalis_segmentation
+BUCKET = map-input-output/g
 PROFILE = default
-PROJECT_NAME = news_chrysalis_segmentation
-R_COMMAND = Rscript
+PROJECT_NAME = g
+PYTHON_INTERPRETER = python3
+
+ifeq (,$(shell which conda))
+HAS_CONDA=False
+else
+HAS_CONDA=True
+endif
 
 #################################################################################
 # COMMANDS                                                                      #
 #################################################################################
 
-## Set up R interpreter environment
-create_environment: renv/created.ignore
+## Set up python interpreter environment and install/update dependencies
+create_environment: venv/bin/activate requirements
 
-renv/created.ignore:
-	@echo ">>> Installing remotes at system level if not already intalled."
-	$(R_COMMAND) -e "if (!requireNamespace('remotes')) install.packages('remotes')"
-	@echo ">>> Installing renv at system level if not already intalled."
-	$(R_COMMAND) -e "if (!requireNamespace('renv')) remotes::install_github('rstudio/renv')"
-	@echo ">>> Initialise renv if not yet exists"
-	if [ ! -f "renv/activate.R" ]; then $(R_COMMAND) -e "renv::init()"; fi
-	$(R_COMMAND) -e "renv::restore()"
-	$(R_COMMAND) -e "renv::activate()"
-	@echo ">>> New renv created and activated"
-	touch renv/created.ignore
+## Install or update packages based on requirements.txt
+requirements: venv/bin/activate requirements.txt
+	. venv/bin/activate; \
+	$(PYTHON_INTERPRETER) -m pip install -r requirements.txt; \
+    $(PYTHON_INTERPRETER) -m ipykernel install --user --name=$(PROJECT_NAME)
+	@echo "Requirements up to date & kernal available in notebook as $(PROJECT_NAME) - restart kernel for changes to take effect"
+    @echo ">>> virtualenv created/updated. Activate with: \n(mac) source venv/bin/activate \n(Windows) venv\Scripts\activate"
+	touch requirements.txt
 
-## Sync Dependencies with Lockfile
-update_environment: create_environment renv.lock
-	$(R_COMMAND)  -e "renv::activate()" -e "renv::restore(library='renv/library')"
-	touch renv.lock
+#### Install Python Dependencies (not in virtualenv)
+venv/bin/activate:
+	# Create venv folder if doesn't exist. Run make clean to start over.
+	test -d venv || $(PYTHON_INTERPRETER) -m venv venv
+	. venv/bin/activate; \
+	$(PYTHON_INTERPRETER) -m pip install -U pip setuptools wheel ipykernel
+	@echo ">>> virtualenv created/updated. Activate with: \n(mac) source venv/bin/activate \n(Windows) venv\Scripts\activate"
+	touch venv/bin/activate
 
 ## Make Dataset
 data: requirements
-	$(R_COMMAND) src/data/make_dataset.R
+	$(PYTHON_INTERPRETER) src/data/make_dataset.py
 
-## Delete all temp files (including environment)
+## Delete all compiled Python files and virtualenv
 clean:
-	find . -type f -name "*.RData" -delete
-	find renv/ -type f -not -name "activate.R" -not -name "settings.dcf" -delete
-	rm -rf renv/library/
-	rm -rf .Rproj.user/
-	rm -rf man/
+	find . -type f -name "*.py[co]" -delete
+	find . -type d -name "__pycache__" -delete
+	#find . -type d -name "*.egg-info" -exec rm -rf {} \;
+	rm -rf dist/
+	rm -rf venv/
+	rm -rf wheelhouse/
 
-# Compile roxygen docs
-docs: create_environment
-	$(R_COMMAND) --vanilla -e "renv::activate()" -e "devtools::document()"
+## Lint using flake8
+lint:
+	flake8 src
 
-## Run tests inside renv
+## Run tests
 test: create_environment
-	$(R_COMMAND) --vanilla -e "renv::activate()" -e "devtools::test()"
+	. venv/bin/activate; \
+	$(PYTHON_INTERPRETER) -m unittest discover test
 
-## Package dependencies to lockfile
-package: create_environment test docs
-	$(R_COMMAND) --vanilla -e "renv::activate()" -e "renv::snapshot('packrat')"
-
-## Build and run shiny app
-shiny: test
-	$(R_COMMAND) -e "renv::activate()" -e "if (!requireNamespace('shiny')) install.packages('shiny')"
-	$(R_COMMAND) --vanilla -e "renv::activate()" -e "shiny::runApp('shiny', port=8501)"
-
-# Rebuilds docker container if dockerfile changes
-docker_build:
-	docker-compose build
-
-## Run docker container, will build it first if required
-docker: docker_build
-	docker-compose up -d
-	@echo ">>> Docker container ready. Rserver localhost:8787, Shiny localhost:3838"
-	@echo ">>> To open a terminal in container run:"
-	@echo ">>> docker exec -it news_chrysalis_segmentation /bin/bash"
-
-## Stop the running container
-docker_stop:
-	docker-compose down
-	@echo ">>> Docker container stopped."
+## Package dependencies to requirements.txt
+package:
+	pip freeze > requirements.txt
 
 ## Upload Data to S3
 sync_data_to_s3:
@@ -95,6 +83,7 @@ ifeq (default,$(PROFILE))
 else
 	aws s3 sync s3://$(BUCKET)/data/ data/ --profile $(PROFILE)
 endif
+
 
 
 #################################################################################
