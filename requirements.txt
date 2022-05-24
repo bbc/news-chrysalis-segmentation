@@ -15,7 +15,7 @@ fonttools==4.33.3
 greenlet==1.1.2
 idna==3.3
 ipykernel==6.13.0
-ipython==8.3.0
+ipython~=7
 jedi==0.18.1
 jmespath==1.0.0
 joblib==1.1.0
