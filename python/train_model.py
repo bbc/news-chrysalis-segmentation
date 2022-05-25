@@ -60,7 +60,7 @@ if __name__ == '__main__':
     # Dump the fitted pipeline to a file
     dump(pipe, MODEL_FP)
     # Upload pipeline to s3
-    upload_to_s3(MODEL_FP, 'map_input_output', 'chrysalis-taste-segmentation/trained_model.joblib')
+    upload_to_s3(MODEL_FP, 'map-input-output', 'chrysalis-taste-segmentation/trained_model.joblib')
 
     print('Dumped model')
     
