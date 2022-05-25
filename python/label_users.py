@@ -44,7 +44,7 @@ if __name__ == '__main__':
     print(f'Read in features: {feature_table.shape}')
 
     # Download the model
-    download_from_s3(MODEL_FP, 'map_input_output', 'chrysalis-taste-segmentation/trained_model.joblib')
+    download_from_s3(MODEL_FP, 'map-input-output', 'chrysalis-taste-segmentation/trained_model.joblib')
     # Load the model in
     pipe = load(MODEL_FP)
 
