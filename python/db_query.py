@@ -14,7 +14,7 @@ class Databases:
     result = pd.DataFrame()
 
     def __init__(self):
-        self.redshift_host = 'localhost'
+        self.redshift_host = 'live-idl-prod-redshift-component-redshiftcluster-1q6vyltqf8lth.ctm1v7db0ubd.eu-west-1.redshift.amazonaws.com'
         self.redshift_user = os.environ.get('REDSHIFT_USR')
         self.redshift_pw = os.environ.get('REDSHIFT_PSD')
         self.redshift_port = os.environ.get('REDSHIFT_PRT')
