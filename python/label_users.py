@@ -37,29 +37,36 @@ def download_from_s3(local_file_path, bucket_name, bucket_filepath):
 if __name__ == '__main__':
     db = Databases()
     feature_table = db.read_from_db(SQL_QUERY)
+    print('Read database')
     feature_table = feature_table.set_index(['audience_id', 'page_section'])
+    print('Reset index')
     feature_table = feature_table.unstack('page_section', fill_value=0)
+    print('Unstacked rows to columns')
     feature_table = feature_table.loc[feature_table.index != 'dummy']
+    print('Removed dummy entries')
 
     print(f'Read in features: {feature_table.shape}')
 
     # Download the model
     download_from_s3(MODEL_FP, 'map-input-output', 'chrysalis-taste-segmentation/trained_model.joblib')
+    print('Downloaded Model from S3')
     # Load the model in
     pipe = load(MODEL_FP)
-
     print('Loaded model')
 
     # Use the pipeline to predict labels for each user in the data loaded in
     labels = pipe.predict(feature_table.values)
+    print('Performed labelling')
     labels = pd.Series(labels, index=feature_table.index)
+    print('Made labels into a series')
 
     # Convert labels to dataframe for writing to SQL table
     labels = labels.reset_index()
     labels.columns = ['audience_id', 'segment']
+    print('Formatted data for dumping to redshift')
 
     # Write the labels to a redshift table
     # This might need pointing to a segserver at some point but I have no idea how to do that
     db.write_df_to_db(labels, SCHEMA_NAME, OUT_TABLE)
     db.write_to_db(f'GRANT ALL ON {SCHEMA_NAME}.{OUT_TABLE} TO edward_dearden WITH GRANT OPTION;')
-    print('Saved user labels')
+    print('Saved user labels to Redshift')
