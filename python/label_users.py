@@ -17,10 +17,20 @@ MODEL_FP = "models/trained_model.joblib"
 SCHEMA_NAME = "central_insights_sandbox"
 OUT_TABLE = "ed_uk_user_taste_segments"
 
+# # SQL query for pulling out features
+# SQL_QUERY = f"""
+# SELECT audience_id, page_section, topic_perc
+# FROM {TABLE_NAME}
+# UNION
+# SELECT DISTINCT 'dummy'::varchar as audience_id, page_section, 0::double precision as topic_perc FROM {TABLE_NAME} ORDER BY 2;
+# """.strip()
+
 # SQL query for pulling out features
 SQL_QUERY = f"""
 SELECT audience_id, page_section, topic_perc
 FROM {TABLE_NAME}
+WHERE audience_id IN
+      (SELECT DISTINCT audience_id FROM {TABLE_NAME} ORDER BY RANDOM() LIMIT 1000000)
 UNION
 SELECT DISTINCT 'dummy'::varchar as audience_id, page_section, 0::double precision as topic_perc FROM {TABLE_NAME} ORDER BY 2;
 """.strip()
@@ -35,6 +45,7 @@ def download_from_s3(local_file_path, bucket_name, bucket_filepath):
 
 
 if __name__ == '__main__':
+    print("Starting...")
     db = Databases()
     feature_table = db.read_from_db(SQL_QUERY)
     print('Read database')
