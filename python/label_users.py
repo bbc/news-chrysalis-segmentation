@@ -20,6 +20,8 @@ FEATURE_NAMES_FP = "models/features.json"
 SCHEMA_NAME = "central_insights_sandbox"
 OUT_TABLE = "ed_uk_user_taste_segments"
 
+BATCH_SIZE = 1000000
+
 # # SQL query for pulling out features
 # SQL_QUERY = f"""
 # SELECT audience_id, page_section, topic_perc
@@ -28,15 +30,19 @@ OUT_TABLE = "ed_uk_user_taste_segments"
 # SELECT DISTINCT 'dummy'::varchar as audience_id, page_section, 0::double precision as topic_perc FROM {TABLE_NAME} ORDER BY 2;
 # """.strip()
 
-# SQL query for pulling out features
-SQL_QUERY = f"""
-SELECT audience_id, page_section, topic_perc
-FROM {TABLE_NAME}
-WHERE audience_id IN
-      (SELECT DISTINCT audience_id FROM {TABLE_NAME} ORDER BY RANDOM() LIMIT 500000)
-UNION
-SELECT DISTINCT 'dummy'::varchar as audience_id, page_section, 0::double precision as topic_perc FROM {TABLE_NAME} ORDER BY 2;
-""".strip()
+def generate_sql_query(cur_offset):
+    # SQL query for pulling out features
+    query = f"""
+    SELECT audience_id, page_section, topic_perc
+    FROM {TABLE_NAME}
+    WHERE audience_id IN
+        (SELECT DISTINCT audience_id FROM {TABLE_NAME} ORDER BY audience_id LIMIT {BATCH_SIZE} OFFSET {cur_offset})
+    UNION
+    SELECT DISTINCT 'dummy'::varchar as audience_id, page_section, 0::double precision as topic_perc FROM {TABLE_NAME} ORDER BY 2;
+    """.strip()
+
+    return query
+
 
 role_name = requests.get('http://169.254.169.254/latest/meta-data/iam/security-credentials/').text
 s3credentials = requests.get('http://169.254.169.254/latest/meta-data/iam/security-credentials/' + role_name).json()
@@ -73,31 +79,23 @@ def align_feature_table_to_model(feature_table, feature_names):
 if __name__ == '__main__':
     print("Starting...")
     db = Databases()
-    feature_table = db.read_from_db(SQL_QUERY)
-    print('Read database')
-    feature_table = feature_table.set_index(['audience_id', 'page_section'])    # Set the index of the data read from Redshift
-    print('Reset index')
-    feature_table = feature_table.unstack('page_section', fill_value=0)         # Move the unique values of section up to become columns
-    print('Unstacked rows to columns')
-    feature_table = feature_table.loc[feature_table.index != 'dummy']           # Remove the dummy rows added in to ensure all features are gathered
-    print('Removed dummy entries')
-    feature_table.columns = feature_table.columns.droplevel(0)                  # Drop the weird extra column level pandas adds in
-    print('Simplified column names')
+    engine = db.create_connector()
 
-    print(f'Read in features: {feature_table.shape}')
+    num_users = engine.execute(f"SELECT COUNT(*) FROM (SELECT DISTINCT audience_id FROM {TABLE_NAME});")
+    num_users = num_users.fetchall()[0][0]
+    num_batches = int(num_users / BATCH_SIZE) + 1
+
+    # Drop the current labels table
+    db.write_to_db(f"DROP TABLE IF EXISTS {SCHEMA_NAME}.{OUT_TABLE}")
 
     # Download the feature names
     download_from_s3(FEATURE_NAMES_FP, 'map-input-output', 'chrysalis-taste-segmentation/features.json')
-    print('Downloadwed feature neames from s3')
+    print('Downloaded feature neames from s3')
 
     # Load the feature names
     with open(FEATURE_NAMES_FP, 'r', encoding='utf-8') as feat_file:
         feature_names = json.load(feat_file)
     print('Loaded feature names')
-
-    # Align this table so it has the same features in the same order as the original
-    feature_table = align_feature_table_to_model(feature_table, feature_names)
-    print('Aligned feature table with feature names')
 
     # Download the model
     download_from_s3(MODEL_FP, 'map-input-output', 'chrysalis-taste-segmentation/trained_model.joblib')
@@ -106,19 +104,45 @@ if __name__ == '__main__':
     pipe = load(MODEL_FP)
     print('Loaded model')
 
-    # Use the pipeline to predict labels for each user in the data loaded in
-    labels = pipe.predict(feature_table.values)
-    print('Performed labelling')
-    labels = pd.Series(labels, index=feature_table.index)
-    print('Made labels into a series')
 
-    # Convert labels to dataframe for writing to SQL table
-    labels = labels.reset_index()
-    labels.columns = ['audience_id', 'segment']
-    print('Formatted data for dumping to redshift')
+    for cur_batch_num in range(num_batches):
+        print("-------------------------------------")
+        print(f"BATCH NUMBER {cur_batch_num}")
+        print("-------------------------------------")
 
-    # Write the labels to a redshift table
-    # This might need pointing to a segserver at some point but I have no idea how to do that
-    db.write_df_to_db(labels, SCHEMA_NAME, OUT_TABLE)
-    db.write_to_db(f'GRANT ALL ON {SCHEMA_NAME}.{OUT_TABLE} TO edward_dearden WITH GRANT OPTION;')
-    print('Saved user labels to Redshift')
+        cur_offset = BATCH_SIZE * cur_batch_num
+
+        cur_query = generate_sql_query(cur_offset)
+        feature_table = db.read_from_db(cur_query)
+        print('Read database')
+        feature_table = feature_table.set_index(['audience_id', 'page_section'])    # Set the index of the data read from Redshift
+        print('Reset index')
+        feature_table = feature_table.unstack('page_section', fill_value=0)         # Move the unique values of section up to become columns
+        print('Unstacked rows to columns')
+        feature_table = feature_table.loc[feature_table.index != 'dummy']           # Remove the dummy rows added in to ensure all features are gathered
+        print('Removed dummy entries')
+        feature_table.columns = feature_table.columns.droplevel(0)                  # Drop the weird extra column level pandas adds in
+        print('Simplified column names')
+
+        print(f'Read in features: {feature_table.shape}')
+
+        # Align this table so it has the same features in the same order as the original
+        feature_table = align_feature_table_to_model(feature_table, feature_names)
+        print('Aligned feature table with feature names')
+
+        # Use the pipeline to predict labels for each user in the data loaded in
+        labels = pipe.predict(feature_table.values)
+        print('Performed labelling')
+        labels = pd.Series(labels, index=feature_table.index)
+        print('Made labels into a series')
+
+        # Convert labels to dataframe for writing to SQL table
+        labels = labels.reset_index()
+        labels.columns = ['audience_id', 'segment']
+        print('Formatted data for dumping to redshift')
+
+        # Write the labels to a redshift table
+        # This might need pointing to a segserver at some point but I have no idea how to do that
+        db.write_df_to_db(labels, SCHEMA_NAME, OUT_TABLE)
+        db.write_to_db(f'GRANT ALL ON {SCHEMA_NAME}.{OUT_TABLE} TO edward_dearden WITH GRANT OPTION;')
+        print('Saved user labels to Redshift')
