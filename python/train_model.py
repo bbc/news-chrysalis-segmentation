@@ -9,10 +9,12 @@ from sklearn.cluster import KMeans
 from joblib import dump
 import requests
 import boto3
+import json
 
 
 TABLE_NAME = "central_insights_sandbox.ed_current_data_to_segment"
 MODEL_FP = "models/trained_model.joblib"
+FEATURE_NAMES_FP = "models/features.json"
 
 # SQL query for pulling out features
 SQL_QUERY = f"""
@@ -39,12 +41,24 @@ if __name__ == '__main__':
     # Read in the feature table for training the model
     db = Databases()
     feature_table = db.read_from_db(SQL_QUERY)
-    feature_table = feature_table.set_index(['audience_id', 'page_section'])
-    feature_table = feature_table.unstack('page_section', fill_value=0)
-    feature_table = feature_table.loc[feature_table.index != 'dummy']
+    feature_table = feature_table.set_index(['audience_id', 'page_section'])    # Set the index of the data read from Redshift
+    feature_table = feature_table.unstack('page_section', fill_value=0)         # Move the unique values of section up to become columns
+    feature_table = feature_table.loc[feature_table.index != 'dummy']           # Remove the dummy rows added in to ensure all features are gathered
+    feature_table.columns = feature_table.columns.droplevel(0)                  # Drop the weird extra column level pandas adds in
+
 
     print(f'Read in features: {feature_table.shape}')
 
+    # Get the feature names and dump them to a file
+    feature_names = list(feature_table.columns)
+    with open(FEATURE_NAMES_FP, 'w', encoding='utf-8') as feat_file:
+        json.dump(feature_names, feat_file)
+    
+    # Dump the features into s3
+    upload_to_s3(FEATURE_NAMES_FP, 'map-input-output', 'chrysalis-taste-segmentation/features.json')
+
+    print("Dumped feature names to s3")
+    
     # SKLearn pipeline which scales, reduces, and clusters the features it is given
     pipe = Pipeline([
                         ('Scaler', StandardScaler()),
