@@ -106,18 +106,18 @@ with get_pages as (
                     visit_id,
                     audience_id,
                     page_name,
-                    REPLACE(page_section, '-', '_') as page_section
+                    REPLACE(page_section, '-', '_') as page_section2
     FROM s3_audience.audience_activity
     WHERE dt BETWEEN (SELECT REPLACE(min_date, '-', '') FROM vb_dates) AND (SELECT REPLACE(max_date, '-', '') FROM vb_dates)
       AND destination = 'PS_NEWS'
       AND is_signed_in = TRUE
       and is_personalisation_on = TRUE
-      AND page_section NOT ILIKE 'name=%'
-      AND page_section NOT IN (SELECT page_section FROM vb_unhelpful_page_sections)
+      AND page_section2 NOT ILIKE 'name=%'
+      AND page_section2 NOT IN (SELECT page_section FROM vb_unhelpful_page_sections)
 )
 SELECT audience_id,
        CASE
-           WHEN page_section IN (
+           WHEN page_section2 IN (
                                  'american_football',
                                  'athletics',
                                  'baseball',
@@ -160,14 +160,14 @@ SELECT audience_id,
                                  'winter_sports',
                                 'wrestling'
                ) THEN 'sport'
-           ELSE page_section END as page_section,
+           ELSE page_section2 END as page_section,
        count(*)                  as topic_count
 FROM get_pages
 GROUP BY 1, 2
 ORDER BY 1, 3
 ;
 
-SELECT count(distinct audience_id) FROM vb_page_topics;--12,722,296
+SELECT count(distinct audience_id) FROM vb_page_topics;--12,721,739
 SELECT * FROM vb_page_topics LIMIT 30;
 SELECT DISTINCT page_section FROM vb_page_topics;
 
@@ -175,10 +175,10 @@ DROP TABLE IF EXISTS vb_cold_start_users;
 CREATE TEMP TABLE vb_cold_start_users as
 SELECT audience_id, sum(topic_count)  as total FROM vb_page_topics GROUP BY 1 HAVING total = 1;
 
-SELECT count(*) FROM vb_cold_start_users;--2,202,315
+SELECT count(*) FROM vb_cold_start_users;--2,202,717
 DELETE FROM vb_page_topics WHERE audience_id IN (SELECT audience_id FROM vb_cold_start_users);
 
-SELECT count(distinct audience_id) FROM vb_page_topics;--10,519,981
+SELECT count(distinct audience_id) FROM vb_page_topics;--10,519,022
 
 --remove any topic with less than 1000 visits
 DROP TABLE IF EXISTS vb_section_usage;
@@ -196,7 +196,7 @@ WHERE page_section IN (SELECT page_section FROM vb_section_usage);
 
 --checks
 SELECT * FROM vb_page_topics ORDER BY audience_id, topic_count DESC LIMIT 100;
-SELECT count(distinct audience_id) FROM vb_page_topics; --10,519,976 (before removing anyone)
+SELECT count(distinct audience_id) FROM vb_page_topics; --10,519,017
 
 SELECT count(*) FROM vb_page_topics; --65,012,054
 
