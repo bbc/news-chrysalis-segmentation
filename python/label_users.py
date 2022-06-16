@@ -88,7 +88,15 @@ if __name__ == '__main__':
 
     # Drop the current labels table
     db.write_to_db(f"DROP TABLE IF EXISTS {SCHEMA_NAME}.{OUT_TABLE};")
-    db.write_to_db(f"CREATE TABLE {SCHEMA_NAME}.{OUT_TABLE};")
+    # Create a new labels table
+    create_table_sql = f"""
+    CREATE TABLE {SCHEMA_NAME}.{OUT_TABLE}
+    (
+        audience_id VARCHAR(100),
+        segment INT
+    );
+    """
+    db.write_to_db(create_table_sql)
 
     # Download the feature names
     download_from_s3(FEATURE_NAMES_FP, 'map-input-output', 'chrysalis-taste-segmentation/features.json')
