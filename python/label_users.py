@@ -77,16 +77,18 @@ def align_feature_table_to_model(feature_table, feature_names):
 
 
 if __name__ == '__main__':
-    print("Starting...")
+    print("STARTING...")
     db = Databases()
     engine = db.create_connector()
 
     num_users = engine.execute(f"SELECT COUNT(*) FROM (SELECT DISTINCT audience_id FROM {TABLE_NAME});")
     num_users = num_users.fetchall()[0][0]
     num_batches = int(num_users / BATCH_SIZE) + 1
+    print(f"Using {num_batches} batches")
 
     # Drop the current labels table
-    db.write_to_db(f"DROP TABLE IF EXISTS {SCHEMA_NAME}.{OUT_TABLE}")
+    db.write_to_db(f"DROP TABLE IF EXISTS {SCHEMA_NAME}.{OUT_TABLE};")
+    db.write_to_db(f"CREATE TABLE {SCHEMA_NAME}.{OUT_TABLE};")
 
     # Download the feature names
     download_from_s3(FEATURE_NAMES_FP, 'map-input-output', 'chrysalis-taste-segmentation/features.json')
@@ -143,6 +145,11 @@ if __name__ == '__main__':
 
         # Write the labels to a redshift table
         # This might need pointing to a segserver at some point but I have no idea how to do that
+        print("Writing to redshift")
         db.write_df_to_db(labels, SCHEMA_NAME, OUT_TABLE)
-        db.write_to_db(f'GRANT ALL ON {SCHEMA_NAME}.{OUT_TABLE} TO edward_dearden WITH GRANT OPTION;')
         print('Saved user labels to Redshift')
+
+    # Grant permissions so I can check the data from my account
+    db.write_to_db(f'GRANT ALL ON {SCHEMA_NAME}.{OUT_TABLE} TO edward_dearden WITH GRANT OPTION;')
+    print("Permissions Granted")
+    print("FINISHED")

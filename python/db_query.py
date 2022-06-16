@@ -1,10 +1,11 @@
+import chunk
 import datetime
 import os
 import pandas as pd
 import re
 
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, text, MetaData, Table
 from sqlalchemy.exc import ProgrammingError
 
 
@@ -72,6 +73,7 @@ class Databases:
         db.dispose()
         return True
 
+
     def string_base(self, x):
         """
         Formats strings using regex ready for inserts.
@@ -79,6 +81,34 @@ class Databases:
         :return: String
         """
         return re.sub(r"[^A-Za-z0-9]+", "", x).lower()
+
+
+    def chunk_df(self, df, chunk_size):
+        cur = []
+        for i, (index, row) in enumerate(df.iterrows()):
+            # If we're on a multiple of chunk_size, yield the current list
+            if i % chunk_size == 0 and len(cur) > 0:
+                yield cur
+                cur = []
+            # Add the current row
+            cur.append(list(row))
+        # Yield whatever's left
+        if len(cur) > 0:
+            yield cur
+
+
+    def test_insert_string(self, df, schema, table):
+        """
+        Tests the insert string creation
+        """
+        # Creat the base query string
+        insert_string_base = f"INSERT INTO {schema}.{table} VALUES "
+        row_limit_per_insert = 5
+
+        for cur_chunk in self.chunk_df(df, row_limit_per_insert):
+            insert_string = insert_string_base + ", ".join([f'({", ".join([str(x) for x in row])})' for row in cur_chunk]) + ';'
+            print(insert_string)
+
 
     def write_df_to_db(self, df, schema, table):
         """
@@ -88,45 +118,20 @@ class Databases:
         :param table: String
         :return: None
         """
-        insert_string_base = f"INSERT INTO {schema}.{table} VALUES"
-        insert_string = insert_string_base
+        # Creat the base query string
+        insert_string_base = f"INSERT INTO {schema}.{table} VALUES "
         row_limit_per_insert = 5000
+        df_len = df.shape[0]
         db = Databases.create_connector(self)
         db.connect()
-        df_len = len(df)
-        i = 0
-        j = 0
-        for index, row in df.iterrows():
-            value_string = ""
-            for item in row:
-                value_string += f"'{item}',"
-                i += 1
-            value_string = value_string[:-1]
-            insert_string += f"({value_string}), "
-            if j % row_limit_per_insert == 0:
-                insert_string = insert_string[:-2]
-                try:
-                    print(
-                        f"[{datetime.datetime.now()}][PAGESINDEX] "
-                        f"Processing index insert: {j} / {df_len}"
-                    )
-                    print("============================")
-                    db.execute(insert_string)
-                except:
-                    print(
-                        f"[{datetime.datetime.now()}][PAGESINDEX] "
-                        f"Failed index insert: {j} / {df_len}"
-                    )
-                    continue
-                insert_string = insert_string_base
-            if j > df_len:
-                break
-            j += 1
-        insert_string = insert_string[:-2]
-        try:
-            print("============================")
-            db.execute(insert_string)
-        except ProgrammingError:
-            print("")
+
+        for cur_chunk in self.chunk_df(df, row_limit_per_insert):
+            insert_string = insert_string_base + ", ".join([f'({", ".join([str(x) for x in row])})' for row in cur_chunk]) + ';'
+            try:
+                db.execute(insert_string)
+            except Exception as e:
+                print(e)
+                continue
+
         print(f"[{datetime.datetime.now()}][PAGESINDEX] COMPLETE")
         db.dispose()
