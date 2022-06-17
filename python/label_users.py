@@ -11,6 +11,7 @@ import requests
 import boto3
 import json
 import numpy as np
+import logging
 
 
 TABLE_NAME = "central_insights_sandbox.ed_current_data_to_segment"
@@ -77,14 +78,14 @@ def align_feature_table_to_model(feature_table, feature_names):
 
 
 if __name__ == '__main__':
-    print("STARTING...")
+    logging.debug("STARTING...")
     db = Databases()
     engine = db.create_connector()
 
     num_users = engine.execute(f"SELECT COUNT(*) FROM (SELECT DISTINCT audience_id FROM {TABLE_NAME});")
     num_users = num_users.fetchall()[0][0]
     num_batches = int(num_users / BATCH_SIZE) + 1
-    print(f"Using {num_batches} batches")
+    logging.debug(f"Using {num_batches} batches")
 
     # Drop the current labels table
     db.write_to_db(f"DROP TABLE IF EXISTS {SCHEMA_NAME}.{OUT_TABLE};")
@@ -100,16 +101,16 @@ if __name__ == '__main__':
 
     # Download the feature names
     download_from_s3(FEATURE_NAMES_FP, 'map-input-output', 'chrysalis-taste-segmentation/features.json')
-    print('Downloaded feature neames from s3')
+    logging.debug('Downloaded feature neames from s3')
 
     # Load the feature names
     with open(FEATURE_NAMES_FP, 'r', encoding='utf-8') as feat_file:
         feature_names = json.load(feat_file)
-    print('Loaded feature names')
+    logging.debug('Loaded feature names')
 
     # Download the model
     download_from_s3(MODEL_FP, 'map-input-output', 'chrysalis-taste-segmentation/trained_model.joblib')
-    print('Downloaded Model from S3')
+    logging.debug('Downloaded Model from S3')
     # Load the model in
     pipe = load(MODEL_FP)
     print('Loaded model')

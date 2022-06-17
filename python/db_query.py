@@ -3,6 +3,7 @@ import datetime
 import os
 import pandas as pd
 import re
+import logging
 
 
 from sqlalchemy import create_engine, text, MetaData, Table
@@ -127,11 +128,12 @@ class Databases:
 
         for cur_chunk in self.chunk_df(df, row_limit_per_insert):
             insert_string = insert_string_base + ", ".join([f'({", ".join([str(x) for x in row])})' for row in cur_chunk]) + ';'
-            try:
-                db.execute(insert_string)
-            except Exception as e:
-                print(e)
-                continue
+            db.execute(insert_string)
+            # try:
+            #     db.execute(insert_string)
+            # except Exception as e:
+            #     logging.error(str(e))
+            #     continue
 
-        print(f"[{datetime.datetime.now()}][PAGESINDEX] COMPLETE")
+        logging.debug(f"[{datetime.datetime.now()}][PAGESINDEX] COMPLETE")
         db.dispose()
