@@ -9,6 +9,8 @@ import logging
 from sqlalchemy import create_engine, text, MetaData, Table
 from sqlalchemy.exc import ProgrammingError
 
+from utilities import upload_to_s3
+
 
 class Databases:
 

@@ -13,6 +13,8 @@ import json
 import numpy as np
 import logging
 
+from utilities import download_from_s3, upload_to_s3
+
 
 TABLE_NAME = "central_insights_sandbox.ed_current_data_to_segment"
 # TEST_SAMPLE_TABLE_NAME = "central_insights_sandbox.ed_current_segmentation_test_sample"
@@ -20,6 +22,7 @@ MODEL_FP = "models/trained_model.joblib"
 FEATURE_NAMES_FP = "models/features.json"
 SCHEMA_NAME = "central_insights_sandbox"
 OUT_TABLE = "ed_uk_user_taste_segments"
+TEMP_DATA_DUMP = "temp_data_dump.parquet.gzip"
 
 BATCH_SIZE = 1000000
 
@@ -45,13 +48,8 @@ def generate_sql_query(cur_offset):
     return query
 
 
-role_name = requests.get('http://169.254.169.254/latest/meta-data/iam/security-credentials/').text
-s3credentials = requests.get('http://169.254.169.254/latest/meta-data/iam/security-credentials/' + role_name).json()
-
-def download_from_s3(local_file_path, bucket_name, bucket_filepath):
-   s3 = boto3.client('s3')
-   with open(local_file_path, "wb") as f:
-       s3.download_fileobj(bucket_name, bucket_filepath, f)
+# role_name = requests.get('http://169.254.169.254/latest/meta-data/iam/security-credentials/').text
+# s3credentials = requests.get('http://169.254.169.254/latest/meta-data/iam/security-credentials/' + role_name).json()
 
 
 def align_feature_table_to_model(feature_table, feature_names):
@@ -87,17 +85,17 @@ if __name__ == '__main__':
     num_batches = int(num_users / BATCH_SIZE) + 1
     logging.debug(f"Using {num_batches} batches")
 
-    # Drop the current labels table
-    db.write_to_db(f"DROP TABLE IF EXISTS {SCHEMA_NAME}.{OUT_TABLE};")
-    # Create a new labels table
-    create_table_sql = f"""
-    CREATE TABLE {SCHEMA_NAME}.{OUT_TABLE}
-    (
-        audience_id VARCHAR(100),
-        segment INT
-    );
-    """
-    db.write_to_db(create_table_sql)
+    # # Drop the current labels table
+    # db.write_to_db(f"DROP TABLE IF EXISTS {SCHEMA_NAME}.{OUT_TABLE};")
+    # # Create a new labels table
+    # create_table_sql = f"""
+    # CREATE TABLE {SCHEMA_NAME}.{OUT_TABLE}
+    # (
+    #     audience_id VARCHAR(100),
+    #     segment INT
+    # );
+    # """
+    # db.write_to_db(create_table_sql)
 
     # Download the feature names
     download_from_s3(FEATURE_NAMES_FP, 'map-input-output', 'chrysalis-taste-segmentation/features.json')
@@ -113,52 +111,66 @@ if __name__ == '__main__':
     logging.debug('Downloaded Model from S3')
     # Load the model in
     pipe = load(MODEL_FP)
-    print('Loaded model')
+    logging.debug('Loaded model')
+
+    batch_labels = []
 
 
     for cur_batch_num in range(num_batches):
-        print("-------------------------------------")
-        print(f"BATCH NUMBER {cur_batch_num}")
-        print("-------------------------------------")
+        logging.debug("-------------------------------------")
+        logging.debug(f"BATCH NUMBER {cur_batch_num}")
+        logging.debug("-------------------------------------")
 
         cur_offset = BATCH_SIZE * cur_batch_num
 
         cur_query = generate_sql_query(cur_offset)
         feature_table = db.read_from_db(cur_query)
-        print('Read database')
+        logging.debug('Read database')
         feature_table = feature_table.set_index(['audience_id', 'page_section'])    # Set the index of the data read from Redshift
-        print('Reset index')
+        logging.debug('Reset index')
         feature_table = feature_table.unstack('page_section', fill_value=0)         # Move the unique values of section up to become columns
-        print('Unstacked rows to columns')
+        logging.debug('Unstacked rows to columns')
         feature_table = feature_table.loc[feature_table.index != 'dummy']           # Remove the dummy rows added in to ensure all features are gathered
-        print('Removed dummy entries')
+        logging.debug('Removed dummy entries')
         feature_table.columns = feature_table.columns.droplevel(0)                  # Drop the weird extra column level pandas adds in
-        print('Simplified column names')
+        logging.debug('Simplified column names')
 
-        print(f'Read in features: {feature_table.shape}')
+        logging.debug(f'Read in features: {feature_table.shape}')
 
         # Align this table so it has the same features in the same order as the original
         feature_table = align_feature_table_to_model(feature_table, feature_names)
-        print('Aligned feature table with feature names')
+        logging.debug('Aligned feature table with feature names')
 
         # Use the pipeline to predict labels for each user in the data loaded in
         labels = pipe.predict(feature_table.values)
-        print('Performed labelling')
+        logging.debug('Performed labelling')
         labels = pd.Series(labels, index=feature_table.index)
-        print('Made labels into a series')
+        logging.debug('Made labels into a series')
 
         # Convert labels to dataframe for writing to SQL table
         labels = labels.reset_index()
         labels.columns = ['audience_id', 'segment']
-        print('Formatted data for dumping to redshift')
+        logging.debug('Formatted data for dumping to redshift')
 
-        # Write the labels to a redshift table
-        # This might need pointing to a segserver at some point but I have no idea how to do that
-        print("Writing to redshift")
-        db.write_df_to_db(labels, SCHEMA_NAME, OUT_TABLE)
-        print('Saved user labels to Redshift')
+        batch_labels.append(labels)
 
-    # Grant permissions so I can check the data from my account
-    db.write_to_db(f'GRANT ALL ON {SCHEMA_NAME}.{OUT_TABLE} TO edward_dearden WITH GRANT OPTION;')
-    print("Permissions Granted")
-    print("FINISHED")
+        # # Write the labels to a redshift table
+        # # This might need pointing to a segserver at some point but I have no idea how to do that
+        # print("Writing to redshift")
+        # db.write_df_to_db(labels, SCHEMA_NAME, OUT_TABLE)
+        # print('Saved user labels to Redshift')
+
+    # Concatenate all the labels
+    logging.debug('Merging batches')
+    labels = pd.concat(batch_labels, axis=0).reset_index(drop=True)
+    # Write the dataframe to a file
+    logging.debug("Dumping to local file")
+    labels.to_parquet(TEMP_DATA_DUMP, compression='gzip')
+    # Upload said file to s3
+    logging.debug('Upload to S3')
+    upload_to_s3(TEMP_DATA_DUMP, 'map-input-output', f'chrysalis-taste-segmentation/{TEMP_DATA_DUMP}')
+
+    # # Grant permissions so I can check the data from my account
+    # db.write_to_db(f'GRANT ALL ON {SCHEMA_NAME}.{OUT_TABLE} TO edward_dearden WITH GRANT OPTION;')
+    # print("Permissions Granted")
+    logging.debug("FINISHED")
