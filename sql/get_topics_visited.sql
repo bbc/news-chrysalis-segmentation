@@ -97,7 +97,8 @@ VALUES ('beds_bucks_and_herts'),
        ('explainers'),
        ('blogs'),
        ('get_inspired'),
-       ('magazine')
+       ('magazine'),
+       ('home')
 ;
 SELECT page_section
 FROM vb_unhelpful_page_sections ORDER BY RANDOM() LIMIT 10;
