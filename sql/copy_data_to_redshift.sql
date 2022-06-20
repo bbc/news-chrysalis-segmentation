@@ -11,7 +11,7 @@ COPY <params.table_name>
 FROM '<params.s3_file_location>'
 CREDENTIALS 'aws_access_key_id=<params.AWS_ACCESS_KEY_ID>;aws_secret_access_key=<params.AWS_SECRET_ACCESS_KEY>;token=<params.TOKEN>'
 PARQUET
-GZIP
+-- GZIP
 -- IGNOREHEADER AS 1
 -- MAXERROR 1500
 ;
