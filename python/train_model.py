@@ -10,6 +10,7 @@ from joblib import dump
 import requests
 import boto3
 import json
+import logging
 
 from utilities import upload_to_s3
 
@@ -17,6 +18,7 @@ from utilities import upload_to_s3
 TABLE_NAME = "central_insights_sandbox.ed_current_data_to_segment"
 MODEL_FP = "models/trained_model.joblib"
 FEATURE_NAMES_FP = "models/features.json"
+DUMP_FILE = "training_user_segments.parquet.gzip"
 
 # SQL query for pulling out features
 SQL_QUERY = f"""
@@ -43,7 +45,7 @@ if __name__ == '__main__':
     feature_table.columns = feature_table.columns.droplevel(0)                  # Drop the weird extra column level pandas adds in
 
 
-    print(f'Read in features: {feature_table.shape}')
+    logging.debug(f'Read in features: {feature_table.shape}')
 
     # Get the feature names and dump them to a file
     feature_names = list(feature_table.columns)
@@ -53,7 +55,7 @@ if __name__ == '__main__':
     # Dump the features into s3
     upload_to_s3(FEATURE_NAMES_FP, 'map-input-output', 'chrysalis-taste-segmentation/features.json')
 
-    print("Dumped feature names to s3")
+    logging.debug("Dumped feature names to s3")
     
     # SKLearn pipeline which scales, reduces, and clusters the features it is given
     pipe = Pipeline([
@@ -65,12 +67,34 @@ if __name__ == '__main__':
     # Fit the pipeline on the feature table
     pipe.fit(feature_table.values)
 
-    print('Fitted model')
+    logging.debug('Fitted model')
 
     # Dump the fitted pipeline to a file
     dump(pipe, MODEL_FP)
     # Upload pipeline to s3
     upload_to_s3(MODEL_FP, 'map-input-output', 'chrysalis-taste-segmentation/trained_model.joblib')
 
-    print('Dumped model')
+    logging.debug('Dumped model')
     
+    # Save the segments of the training data
+    logging.debug("Dumping the segments for the training data to s3")
+    # Use the pipeline to predict labels for each user in the data loaded in
+    labels = pipe.predict(feature_table.values)
+    logging.debug('Performed labelling')
+    labels = pd.Series(labels, index=feature_table.index)
+    logging.debug('Made labels into a series')
+
+    # Convert labels to dataframe for writing to SQL table
+    labels = labels.reset_index()
+    labels.columns = ['audience_id', 'segment']
+    logging.debug('Formatted data for dumping to redshift')
+
+    # Write the dataframe to a file
+    logging.debug("Dumping to local file")
+    labels.to_parquet(DUMP_FILE, compression='gzip')
+
+    # Upload said file to s3
+    logging.debug('Upload to S3')
+    upload_to_s3(DUMP_FILE, 'map-input-output', f'chrysalis-taste-segmentation/{DUMP_FILE}')
+
+    logging.debug("Finished")
