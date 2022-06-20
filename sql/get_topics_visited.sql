@@ -93,7 +93,11 @@ VALUES ('beds_bucks_and_herts'),
        ('video_and_audio'),
        ('wales_politics'),
        ('wales'),
-       ('help')
+       ('help'),
+       ('explainers'),
+       ('blogs'),
+       ('get_inspired'),
+       ('magazine')
 ;
 SELECT page_section
 FROM vb_unhelpful_page_sections ORDER BY RANDOM() LIMIT 10;
@@ -132,6 +136,7 @@ SELECT audience_id,
                                  'disability_sport',
                                  'equestrian',
                                  'formula1',
+                                  'football',
                                  'gaelic_games',
                                  'golf',
                                  'gymnastics',
