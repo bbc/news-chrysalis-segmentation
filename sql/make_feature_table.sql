@@ -37,6 +37,7 @@ FROM ed_page_topics a
 ORDER BY a.audience_id
 ;
 GRANT ALL ON ed_current_data_to_segment TO edward_dearden WITH GRANT OPTION;
+GRANT ALL ON ed_current_data_to_segment TO vicky_banks WITH GRANT OPTION;
 
 
 -- -- to read into python
