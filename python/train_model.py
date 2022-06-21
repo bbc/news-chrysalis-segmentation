@@ -11,14 +11,22 @@ import requests
 import boto3
 import json
 import logging
+import os
 
 from utilities import upload_to_s3
 
 
-TABLE_NAME = "central_insights_sandbox.ed_current_data_to_segment"
-MODEL_FP = "models/trained_model.joblib"
-FEATURE_NAMES_FP = "models/features.json"
-DUMP_FILE = "training_user_segments.parquet.gzip"
+# TABLE_NAME = "central_insights_sandbox.ed_current_data_to_segment"
+# MODEL_FP = "models/trained_model.joblib"
+# FEATURE_NAMES_FP = "models/features.json"
+# DUMP_FILE = "training_user_segments.parquet.gzip"
+
+TABLE_NAME = os.environ.get('table_name')
+MODEL_FP = os.environ.get('model_fp')
+FEATURE_NAMES_FP = os.environ.get('feature_names_fp')
+DUMP_FILE = os.environ.get('dump_file')
+BUCKET_NAME = os.environ.get('bucket_name')
+BUCKET_FOLDER = os.environ.get('bucket_folder')
 
 # SQL query for pulling out features
 SQL_QUERY = f"""
@@ -53,7 +61,7 @@ if __name__ == '__main__':
         json.dump(feature_names, feat_file)
     
     # Dump the features into s3
-    upload_to_s3(FEATURE_NAMES_FP, 'map-input-output', 'chrysalis-taste-segmentation/features.json')
+    upload_to_s3(FEATURE_NAMES_FP, BUCKET_NAME, f'{BUCKET_FOLDER}/{FEATURE_NAMES_FP}')
 
     logging.debug("Dumped feature names to s3")
     
@@ -72,7 +80,7 @@ if __name__ == '__main__':
     # Dump the fitted pipeline to a file
     dump(pipe, MODEL_FP)
     # Upload pipeline to s3
-    upload_to_s3(MODEL_FP, 'map-input-output', 'chrysalis-taste-segmentation/trained_model.joblib')
+    upload_to_s3(MODEL_FP, BUCKET_NAME, f'{BUCKET_FOLDER}/{MODEL_FP}')
 
     logging.debug('Dumped model')
     
@@ -95,6 +103,6 @@ if __name__ == '__main__':
 
     # Upload said file to s3
     logging.debug('Upload to S3')
-    upload_to_s3(DUMP_FILE, 'map-input-output', f'chrysalis-taste-segmentation/{DUMP_FILE}')
+    upload_to_s3(DUMP_FILE, BUCKET_NAME, f'{BUCKET_FOLDER}/{DUMP_FILE}')
 
     logging.debug("Finished")

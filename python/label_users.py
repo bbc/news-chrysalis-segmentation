@@ -12,19 +12,27 @@ import boto3
 import json
 import numpy as np
 import logging
+import os
 
 from utilities import download_from_s3, upload_to_s3
 
 
-TABLE_NAME = "central_insights_sandbox.ed_current_data_to_segment"
-# TEST_SAMPLE_TABLE_NAME = "central_insights_sandbox.ed_current_segmentation_test_sample"
-MODEL_FP = "models/trained_model.joblib"
-FEATURE_NAMES_FP = "models/features.json"
-SCHEMA_NAME = "central_insights_sandbox"
-OUT_TABLE = "ed_uk_user_taste_segments"
-TEMP_DATA_DUMP = "temp_data_dump.parquet.gzip"
+# TABLE_NAME = "central_insights_sandbox.ed_current_data_to_segment"
+# # TEST_SAMPLE_TABLE_NAME = "central_insights_sandbox.ed_current_segmentation_test_sample"
+# MODEL_FP = "models/trained_model.joblib"
+# FEATURE_NAMES_FP = "models/features.json"
+# # SCHEMA_NAME = "central_insights_sandbox"
+# # OUT_TABLE = "ed_uk_user_taste_segments"
+# TEMP_DATA_DUMP = "temp_data_dump.parquet.gzip"
+# BATCH_SIZE = 1000000
 
-BATCH_SIZE = 1000000
+TABLE_NAME = os.environ.get('table_name')
+MODEL_FP = os.environ.get('model_fp')
+FEATURE_NAMES_FP = os.environ.get('feature_names_fp')
+TEMP_DATA_DUMP = os.environ.get('temp_data_dump')
+BATCH_SIZE = int(os.environ.get('batch_size'))
+BUCKET_NAME = os.environ.get('bucket_name')
+BUCKET_FOLDER = os.environ.get('bucket_folder')
 
 # # SQL query for pulling out features
 # SQL_QUERY = f"""
@@ -168,7 +176,7 @@ if __name__ == '__main__':
     labels.to_parquet(TEMP_DATA_DUMP, compression='gzip')
     # Upload said file to s3
     logging.debug('Upload to S3')
-    upload_to_s3(TEMP_DATA_DUMP, 'map-input-output', f'chrysalis-taste-segmentation/{TEMP_DATA_DUMP}')
+    upload_to_s3(TEMP_DATA_DUMP, BUCKET_NAME, f'{BUCKET_FOLDER}/{TEMP_DATA_DUMP}')
 
     # # Grant permissions so I can check the data from my account
     # db.write_to_db(f'GRANT ALL ON {SCHEMA_NAME}.{OUT_TABLE} TO edward_dearden WITH GRANT OPTION;')

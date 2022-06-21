@@ -1,16 +1,15 @@
 BEGIN;
-set search_path TO 'central_insights_sandbox';
+set search_path TO '<params.schema>';
 
-DROP TABLE IF EXISTS ed_dates;
-CREATE TABLE ed_dates (
+-- DROP TABLE IF EXISTS ed_dates;
+CREATE TEMP TABLE ed_dates (
     min_date date,
     max_date date
 );
 
 INSERT INTO ed_dates VALUES (cast('<params.date>'::varchar AS date)-(cast('<params.num_days>'::varchar AS int)), cast('<params.date>'::varchar AS date))
--- INSERT INTO ed_dates VALUES ('2022-01-17', '2022-02-14')
-;
-GRANT ALL ON ed_dates TO edward_dearden WITH GRANT OPTION;
+-- INSERT INTO ed_dates VALUES ('2022-01-17', '2022-02-14');
+-- GRANT ALL ON ed_dates TO edward_dearden WITH GRANT OPTION;
 
 CREATE TEMP TABLE ed_page_topics as
 with get_pages as (
@@ -28,24 +27,16 @@ GROUP BY 1,2
 ORDER BY 1,3
 ;
 
-DROP TABLE IF EXISTS ed_current_data_to_segment;
-CREATE TABLE ed_current_data_to_segment as
+DROP TABLE IF EXISTS <params.table_name>;
+CREATE TABLE <params.table_name> as
 with total_count as (SELECT audience_id, sum(topic_count) as total_count FROM ed_page_topics GROUP BY 1)
 SELECT a.*, a.topic_count::double precision / b.total_count::double precision as topic_perc, trunc(topic_perc,3)
 FROM ed_page_topics a
          JOIN total_count b on a.audience_id = b.audience_id
 ORDER BY a.audience_id
 ;
-GRANT ALL ON ed_current_data_to_segment TO edward_dearden WITH GRANT OPTION;
-GRANT ALL ON ed_current_data_to_segment TO vicky_banks WITH GRANT OPTION;
-
-
--- -- to read into python
--- SELECT audience_id, page_section, topic_perc
--- FROM central_insights_sandbox.ed_page_topics_perc
--- WHERE audience_id IN
---       (SELECT DISTINCT audience_id FROM central_insights_sandbox.ed_page_topics_perc ORDER BY RANDOM() LIMIT 1000)
--- UNION
--- SELECT DISTINCT 'dummy'::varchar as audience_id, page_section, 0::double precision as topic_perc FROM central_insights_sandbox.ed_page_topics_perc ORDER BY 2;
+GRANT ALL ON <params.table_name> TO edward_dearden WITH GRANT OPTION;
+GRANT ALL ON <params.table_name> TO vicky_banks WITH GRANT OPTION;
+GRANT ALL ON <params.table_name> TO GROUP central_insights WITH GRANT OPTION;
 
 END
