@@ -103,6 +103,11 @@ VALUES ('beds_bucks_and_herts'),
 SELECT page_section
 FROM vb_unhelpful_page_sections ORDER BY RANDOM() LIMIT 10;
 
+DROP TABLE IF EXISTS vb_adult_users;
+CREATE TABLE vb_adult_users as
+    SELECT bbc_hid3 FROM prez.profile_extension WHERE age_range NOT IN ('0-5', '6-10', '11-15');
+
+SELECT count(*) FROM vb_adult_users;--45,588,118
 
 DROP TABLE IF EXISTS vb_page_topics;
 CREATE TEMP TABLE vb_page_topics as
@@ -119,6 +124,7 @@ with get_pages as (
       and is_personalisation_on = TRUE
       AND page_section2 NOT ILIKE 'name=%'
       AND page_section2 NOT IN (SELECT page_section FROM vb_unhelpful_page_sections)
+    AND audience_id IN (SELECT bbc_hid3 FROM vb_adult_users)
 )
 SELECT audience_id,
        CASE
@@ -226,6 +232,7 @@ ORDER BY 2;
 SELECT distinct page_section FROM vb_page_topics_perc LIMIT 10;--47
 SELECT * FROM central_insights_sandbox.vb_page_topics_perc LIMIT 10;
 SELECT count(*) FROM vb_page_topics_perc LIMIT 10;--70,976,890
+
 
 
 -- to read into python
