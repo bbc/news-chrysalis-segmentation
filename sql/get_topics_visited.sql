@@ -103,29 +103,67 @@ VALUES ('beds_bucks_and_herts'),
 SELECT page_section
 FROM vb_unhelpful_page_sections ORDER BY RANDOM() LIMIT 10;
 
+--remove any children's account
 DROP TABLE IF EXISTS vb_adult_users;
 CREATE TABLE vb_adult_users as
     SELECT bbc_hid3 FROM prez.profile_extension WHERE age_range NOT IN ('0-5', '6-10', '11-15');
 
 SELECT count(*) FROM vb_adult_users;--45,588,118
-
-DROP TABLE IF EXISTS vb_page_topics;
-CREATE TEMP TABLE vb_page_topics as
-with get_pages as (
-    SELECT DISTINCT dt,
-                    visit_id,
-                    audience_id,
-                    page_name,
-                    REPLACE(page_section, '-', '_') as page_section2
+-- How many news users in that time?
+with get_data as (
+    SELECT DISTINCT audience_id
     FROM s3_audience.audience_activity
     WHERE dt BETWEEN (SELECT REPLACE(min_date, '-', '') FROM vb_dates) AND (SELECT REPLACE(max_date, '-', '') FROM vb_dates)
       AND destination = 'PS_NEWS'
       AND is_signed_in = TRUE
       and is_personalisation_on = TRUE
-      AND page_section2 NOT ILIKE 'name=%'
-      AND page_section2 NOT IN (SELECT page_section FROM vb_unhelpful_page_sections)
-    AND audience_id IN (SELECT bbc_hid3 FROM vb_adult_users)
+      AND audience_id IN (SELECT bbc_hid3 FROM vb_adult_users)
 )
+SELECT count(*)
+FROM get_data
+;--12,550,150
+
+--- get the users activity
+DROP TABLE IF EXISTS vb_news_topic_activity;
+CREATE TABLE vb_news_topic_activity as
+SELECT DISTINCT dt,
+                visit_id,
+                audience_id,
+                page_name,
+                REPLACE(page_section, '-', '_') as page_section2
+FROM s3_audience.audience_activity
+WHERE dt BETWEEN (SELECT REPLACE(min_date, '-', '') FROM vb_dates) AND (SELECT REPLACE(max_date, '-', '') FROM vb_dates)
+  AND destination = 'PS_NEWS'
+  AND is_signed_in = TRUE
+  and is_personalisation_on = TRUE
+  AND page_section2 NOT ILIKE 'name=%'
+  AND page_section2 NOT IN (SELECT page_section FROM vb_unhelpful_page_sections)
+  AND audience_id IN (SELECT bbc_hid3 FROM vb_adult_users)
+;
+
+SELECT count(distinct audience_id) FROM vb_news_topic_activity;--11,178,987
+---users who've don't have more then X visits
+DROP TABLE IF EXISTS vb_too_few_visits;
+CREATE TEMP TABLE vb_too_few_visits as
+SELECT DISTINCT audience_id,
+                count(distinct dt || visit_id) as visits
+FROM vb_news_topic_activity
+GROUP BY 1
+HAVING visits >= 3;
+
+SELECT count(DISTINCT audience_id) FROM vb_too_few_visits;--7,716,192
+
+/*SELECT CASE WHEN visits <4 THEN 'remove' ELSE 'keep' END as check,
+       --visits,
+       count(distinct audience_id)                                                                           as users,
+       round(100 * users::double precision / (SELECT count(distinct audience_id) FROM vb_too_few_visits), 0) as perc
+FROM vb_too_few_visits
+GROUP BY 1
+ORDER BY 1;*/
+
+-- collect the number of topics people have viewed
+DROP TABLE IF EXISTS vb_page_topics;
+CREATE TEMP TABLE vb_page_topics as
 SELECT audience_id,
        CASE
            WHEN page_section2 IN (
@@ -174,23 +212,26 @@ SELECT audience_id,
                ) THEN 'sport'
            ELSE page_section2 END as page_section,
        count(*)                  as topic_count
-FROM get_pages
+FROM vb_news_topic_activity
+WHERE audience_id IN (SELECT DISTINCT audience_id FROM vb_too_few_visits)--keep usrs who are not cold starts
 GROUP BY 1, 2
 ORDER BY 1, 3
 ;
 
-SELECT count(distinct audience_id) FROM vb_page_topics;--12,721,739
-SELECT * FROM vb_page_topics LIMIT 30;
-SELECT DISTINCT page_section FROM vb_page_topics;
+--SELECT count(distinct audience_id) FROM vb_page_topics;--7,716,192
+--SELECT * FROM vb_page_topics LIMIT 30;
+--SELECT DISTINCT page_section FROM vb_page_topics;
 
-DROP TABLE IF EXISTS vb_cold_start_users;
-CREATE TEMP TABLE vb_cold_start_users as
+
+---users with only one visit to one topic - maybe we want to keep these people?
+/*DROP TABLE IF EXISTS vb_only_one_topic;
+CREATE TEMP TABLE vb_only_one_topic as
 SELECT audience_id, sum(topic_count)  as total FROM vb_page_topics GROUP BY 1 HAVING total = 1;
 
-SELECT count(*) FROM vb_cold_start_users;--2,202,717
-DELETE FROM vb_page_topics WHERE audience_id IN (SELECT audience_id FROM vb_cold_start_users);
+SELECT count(*) FROM vb_only_one_topic;--2,202,717
+DELETE FROM vb_page_topics WHERE audience_id IN (SELECT DISTINCT audience_id FROM vb_only_one_topic);
+*/
 
-SELECT count(distinct audience_id) FROM vb_page_topics;--10,519,022
 
 --remove any topic with less than 1000 visits
 DROP TABLE IF EXISTS vb_section_usage;
@@ -201,16 +242,14 @@ GROUP BY 1
 HAVING count < 1000
 ORDER BY 3 desc;
 
-SELECT * FROM vb_section_usage;
 
 DELETE FROM vb_page_topics
 WHERE page_section IN (SELECT page_section FROM vb_section_usage);
 
 --checks
 SELECT * FROM vb_page_topics ORDER BY audience_id, topic_count DESC LIMIT 100;
-SELECT count(distinct audience_id) FROM vb_page_topics; --10,519,017
-
-SELECT count(*) FROM vb_page_topics; --65,012,054
+SELECT count(distinct audience_id) FROM vb_page_topics; --7,716,192
+SELECT count(*) FROM vb_page_topics; --49,015,386
 
 
 DROP TABLE IF EXISTS vb_page_topics_perc;
@@ -222,16 +261,12 @@ FROM vb_page_topics a
 ORDER BY a.audience_id
 ;
 
+--SELECT * FROM vb_page_topics_perc LIMIT 10;
 
 --checks
 SELECT DISTINCT 'dummy'::varchar as audience_id, page_section, 0::double precision as topic_perc
 FROM central_insights_sandbox.vb_page_topics_perc
 ORDER BY 2;
-
-
-SELECT distinct page_section FROM vb_page_topics_perc LIMIT 10;--47
-SELECT * FROM central_insights_sandbox.vb_page_topics_perc LIMIT 10;
-SELECT count(*) FROM vb_page_topics_perc LIMIT 10;--70,976,890
 
 
 
