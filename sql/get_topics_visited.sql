@@ -217,8 +217,9 @@ WHERE audience_id IN (SELECT DISTINCT audience_id FROM vb_too_few_visits)--keep 
 GROUP BY 1, 2
 ORDER BY 1, 3
 ;
-
 --SELECT count(distinct audience_id) FROM vb_page_topics;--7,716,192
+DELETE FROM vb_page_topics WHERE page_section = 'sport';
+--SELECT count(distinct audience_id) FROM vb_page_topics;--7,715,951
 --SELECT * FROM vb_page_topics LIMIT 30;
 --SELECT DISTINCT page_section FROM vb_page_topics;
 
@@ -248,8 +249,8 @@ WHERE page_section IN (SELECT page_section FROM vb_section_usage);
 
 --checks
 SELECT * FROM vb_page_topics ORDER BY audience_id, topic_count DESC LIMIT 100;
-SELECT count(distinct audience_id) FROM vb_page_topics; --7,716,192
-SELECT count(*) FROM vb_page_topics; --49,015,386
+SELECT count(distinct audience_id) FROM vb_page_topics; --7,715,951
+SELECT count(*) FROM vb_page_topics; --47,590,447
 
 
 DROP TABLE IF EXISTS vb_page_topics_perc;
