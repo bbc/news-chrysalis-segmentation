@@ -27,6 +27,8 @@ FEATURE_NAMES_FP = os.environ.get('feature_names_fp')
 DUMP_FILE = os.environ.get('dump_file')
 BUCKET_NAME = os.environ.get('bucket_name')
 BUCKET_FOLDER = os.environ.get('bucket_folder')
+N_CLUSTERS = int(os.environ.get('n_clusters'))
+N_COMPONENTS = int(os.environ.get('n_components'))
 
 # SQL query for pulling out features
 SQL_QUERY = f"""
@@ -68,8 +70,8 @@ if __name__ == '__main__':
     # SKLearn pipeline which scales, reduces, and clusters the features it is given
     pipe = Pipeline([
                         ('Scaler', StandardScaler()),
-                        ('PCA', PCA(n_components=5)),
-                        ('Cluster', KMeans(n_clusters=5, random_state=0))
+                        ('PCA', PCA(n_components=N_COMPONENTS)),
+                        ('Cluster', KMeans(n_clusters=N_CLUSTERS, random_state=0))
                     ])
     
     # Fit the pipeline on the feature table
