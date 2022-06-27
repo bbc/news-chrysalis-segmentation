@@ -294,3 +294,8 @@ FROM central_insights_sandbox.vb_page_topics_perc
 GROUP BY 1
 ORDER BY 3 DESC
 ;
+
+SELECt *
+FROM vb_news_topic_activity
+ORDER BY dt, audience_id
+LIMIT 100;
