@@ -39,3 +39,11 @@ SELECT *
 FROM vb_chrys_feat_test
 WHERE cluster = 0
 LIMIT 10;
+
+SELECT product,date_of_segmentation, bbc_hid3, segvalue
+FROM central_insights.sg10026_info_individual_alltime
+WHERE product = 'news'
+AND date_of_segmentation BETWEEN (SELECT min_date FROM central_insights_sandbox.vb_dates) AND (SELECT max_date FROM central_insights_sandbox.vb_dates)
+AND bbc_hid3 IN (SELECT DISTINCT audience_id FROM vb_chrys_feat_test)
+ORDER BY bbc_hid3, date_of_segmentation
+LIMIT 100;
