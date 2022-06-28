@@ -122,13 +122,13 @@ WHERE rank <=5;
     SELECT * FROM vb_bounce_visits WHERE page_name_cleaned IN ('news.page','news.discovery.page');
 
 SELECT dt, count(*) FROM vb_homepage_bounce GROUP BY 1 ORDER BY 1;--1,636,221
-SELECt * FROM vb_homepage_bounce LIMIT 10;
+SELECT * FROM vb_homepage_bounce LIMIT 10;
 SELECT * FROM vb_bounce_visits LIMIT 100;
 
 
 --- What % of bounce visits per day are on homepage?
-SELECT *
-FROM vb_bounce_summary
+SELECT app_type
+FROM vb_bounce_visits
 --WHERE page_name_cleaned IN ('news.page','news.discovery.page')
 LIMIT 10;
 
@@ -139,3 +139,50 @@ FROM vb_bounce_visits
 GROUP BY 1,2
 ORDER BY 1,2
 LIMIT 10;
+
+SELECT dt, app_type,page_name_cleaned, visits, perc, round(visits::double precision*100/perc,0) as total
+FROM vb_bounce_summary
+WHERE page_name_cleaned IN ('news.page','news.discovery.page')
+SELECT * FROM vb_bounce_summary;
+
+-- % of visits that bounce
+with bounce_visits as (
+    SELECT dt,
+           app_type,
+           round(visits::double precision * 100 / perc, 0) as total_bounce
+    FROM vb_bounce_summary
+    WHERE rank = 1
+    ORDER BY app_type, dt
+),
+     homepage_bounce as (
+         SELECT dt,
+                app_type,
+                visits as homepage_bounce
+         FROM vb_bounce_summary
+         WHERE page_name_cleaned IN ('news.page', 'news.discovery.page')
+         ORDER BY app_type, dt),
+
+
+     all_visits as (
+         SELECT app_type, date_of_event::date, sum(visits) as visits
+         FROM vb_news_daily
+         GROUP BY 1, 2
+         ORDER BY app_type, date_of_event
+     )
+SELECT a.app_type,
+       a.date_of_event                                                                      as dt,
+       a.visits,
+       b.total_bounce,
+       trunc(round(b.total_bounce::double precision / a.visits::double precision, 2), 2)    as perc,
+       c.homepage_bounce,
+       trunc(round(c.homepage_bounce::double precision / a.visits::double precision, 2), 2) as homepage_perc
+FROM all_visits a
+         JOIN bounce_visits b on a.app_type = b.app_type AND a.date_of_event = b.dt
+         JOIN homepage_bounce c on a.app_type = c.app_type AND a.date_of_event = c.dt
+
+ORDER by a.app_type, date_of_event
+;
+
+/*
+
+ */
