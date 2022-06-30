@@ -94,7 +94,7 @@ CREATE TEMP TABLE ed_section_usage as
     HAVING count <1000
     ORDER BY 3 desc;
 
-DELETE FROM ed_page_topics WHERE page_section IN (SELECT page_section FROM ed_section_usage
+DELETE FROM ed_page_topics WHERE page_section IN (SELECT page_section FROM ed_section_usage);
 
 DROP TABLE IF EXISTS <params.table_name>;
 CREATE TABLE <params.table_name> as
@@ -113,4 +113,4 @@ GRANT ALL ON <params.table_name> TO edward_dearden WITH GRANT OPTION;
 GRANT ALL ON <params.table_name> TO vicky_banks WITH GRANT OPTION;
 GRANT ALL ON <params.table_name> TO GROUP central_insights;
 
-END
+END;
