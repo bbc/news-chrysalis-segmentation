@@ -20,4 +20,4 @@ GRANT ALL ON <params.table_name> TO edward_dearden WITH GRANT OPTION;
 GRANT ALL ON <params.table_name> TO vicky_banks WITH GRANT OPTION;
 GRANT ALL ON <params.table_name> TO GROUP central_insights;
 
-END
+END;
