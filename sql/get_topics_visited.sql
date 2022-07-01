@@ -12,94 +12,25 @@ VALUES ('2022-01-17', '2022-04-17');
 SELECT * FROM vb_dates;
 
 -- remove any sections we won't be using such as local news
-DROP TABLE IF EXISTS vb_unhelpful_page_sections;
-CREATE TABLE vb_unhelpful_page_sections
+DROP TABLE IF EXISTS vb_page_sections;
+CREATE TABLE vb_page_sections
 (
     page_section varchar(4000)
 );
-INSERT INTO vb_unhelpful_page_sections
-VALUES ('beds_bucks_and_herts'),
-       ('berkshire'),
-       ('birmingham_and_black_country'),
-       ('bradford_and_west_yorkshire'),
-       ('bristol'),
-       ('cambridgeshire'),
-       ('cornwall'),
-       ('coventry_and_warwickshire'),
-       ('cumbria'),
-       ('derbyshire'),
-       ('devon'),
-       ('dorset'),
-       ('essex'),
-       ('gloucestershire'),
-       ('hampshire'),
-       ('hereford_and_worcester'),
-       ('humberside'),
-       ('kent'),
-       ('lancashire'),
-       ('leeds_and_west_yorkshire'),
-       ('leicester'),
-       ('lincolnshire'),
-       ('manchester'),
-       ('merseyside'),
-       ('norfolk'),
-       ('northamptonshire'),
-       ('nottingham'),
-       ('oxford'),
-       ('shropshire'),
-       ('somerset'),
-       ('south_yorkshire'),
-       ('stoke_and_staffordshire'),
-       ('suffolk'),
-       ('surrey'),
-       ('sussex'),
-       ('tayside_and_central'),
-       ('tees'),
-       ('tyne_and_wear'),
-       ('wiltshire'),
-       ('york_and_north_yorkshire'),
-       ('guernsey'),
-       ('isle_of_man'),
-       ('jersey'),
-       ('foyle_and_west'),
-       ('edinburgh_east_and_fife'),
-       ('glasgow_and_west'),
-       ('highlands_and_islands'),
-       ('north_east_orkney_and_shetland'),
-       ('south_scotland'),
-       ('northern_ireland'),
-       ('mid_wales'),
-       ('north_east_wales'),
-       ('north_west_wales'),
-       ('south_east_wales'),
-       ('south_west_wales'),
-       ('africa'),
-       ('dachaigh'),
-       ('election'),
-       ('england'),
-       ('features'),
-       ('feeds'),
-       ('front_page'),
-       ('have_your_say'),
-       ('in_pictures'),
-       ('london'),
-       ('london_and_south_east'),
-       ('news'),
-       ('northern_ireland_politics'),
-       ('northern_ireland'),
-       ('other'),
-       ('scotland_business'),
-       ('scotland'),
-       ('scotland_politics'),
-       ('video_and_audio'),
-       ('wales_politics'),
-       ('wales'),
-       ('help'),
-       ('explainers'),
-       ('blogs'),
-       ('get_inspired'),
-       ('magazine'),
-       ('home')
+INSERT INTO vb_page_sections
+VALUES ('business'),
+       ('disability'),
+       ('education'),
+       ('entertainment_and_arts'),
+       ('health'),
+       ('newsbeat'),
+       ('politics'),
+       ('reality_check'),
+       ('science_and_environment'),
+       ('stories'),
+       ('technology'),
+       ('uk'),
+       ('world')
 ;
 
 --remove any children's account
@@ -121,7 +52,7 @@ WHERE dt BETWEEN (SELECT REPLACE(min_date, '-', '') FROM vb_dates) AND (SELECT R
   AND is_signed_in = TRUE
   and is_personalisation_on = TRUE
   AND page_section2 NOT ILIKE 'name=%'
-  AND page_section2 NOT IN (SELECT page_section FROM vb_unhelpful_page_sections)
+  AND page_section2 IN (SELECT page_section FROM vb_page_sections)
   AND audience_id IN (SELECT bbc_hid3 FROM vb_adult_users)
 ;
 
@@ -139,73 +70,17 @@ HAVING visits >= 3;
 DROP TABLE IF EXISTS vb_page_topics;
 CREATE TEMP TABLE vb_page_topics as
 SELECT audience_id,
-       CASE
-           WHEN page_section2 IN (
-                                 'american_football',
-                                 'athletics',
-                                 'baseball',
-                                 'basketball',
-                                 'badminton',
-                                 'bowls',
-                                 'boxing',
-                                 'commonwealth_games',
-                                 'cricket',
-                                 'cycling',
-                                 'darts',
-                                 'disability_sport',
-                                 'equestrian',
-                                 'formula1',
-                                  'football',
-                                 'gaelic_games',
-                                 'golf',
-                                 'gymnastics',
-                                 'hockey',
-                                 'horse_racing',
-                                 'ice_hockey',
-                                 'karate',
-                                 'mixed_martial_arts',
-                                 'modern_pentathlon',
-                                 'motorsport',
-                                 'netball',
-                                 'olympics',
-                                 'rowing',
-                                 'rugby_league',
-                                 'rugby_union',
-                                 'skateboarding',
-                                 'snooker',
-                                 'squash',
-                                 'sport',
-                                 'swimming',
-                                 'sailing',
-                                 'tennis',
-                                 'triathlon',
-                                 'weightlifting',
-                                 'winter_olympics',
-                                 'winter_sports',
-                                'wrestling'
-               ) THEN 'sport'
-           ELSE page_section2 END as page_section,
+       page_section2 as page_section,
        count(*)                  as topic_count
 FROM vb_news_topic_activity
 WHERE audience_id IN (SELECT DISTINCT audience_id FROM vb_too_few_visits)--keep usrs who are not cold starts
 GROUP BY 1, 2
 ORDER BY 1, 3
 ;
---remove sport as a topic
-DELETE FROM vb_page_topics WHERE page_section = 'sport';
 
---remove any topic with less than 1000 visits
-DROP TABLE IF EXISTS vb_section_usage;
-CREATE TEMP TABLE vb_section_usage as
-SELECT page_section, count(distinct audience_id) as users, sum(topic_count) as count
-FROM vb_page_topics
-GROUP BY 1
-HAVING count < 1000
-ORDER BY 3 desc;
+SELECT distinct page_section FROM vb_page_topics;
 
-DELETE FROM vb_page_topics WHERE page_section IN (SELECT page_section FROM vb_section_usage);
-
--- find the percentage of pagesfro each topic for each user
+-- find the percentage of pages from each topic for each user
 DROP TABLE IF EXISTS vb_page_topics_perc;
 CREATE TABLE vb_page_topics_perc as
 with total_count as (SELECT audience_id, sum(topic_count) as total_count FROM vb_page_topics GROUP BY 1)
@@ -215,6 +90,7 @@ FROM vb_page_topics a
 ORDER BY a.audience_id
 ;
 
+SELECT count(distinct audience_id) FROM vb_page_topics_perc;--7,706,467
 
 -- to read into python
 SELECT audience_id, page_section, topic_perc
