@@ -62,4 +62,9 @@ data/
 renv/library/
 renv/*.ignore
 
+
+# pycache
+*__pycache__
+
 venv/*
+
