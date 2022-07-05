@@ -73,7 +73,7 @@ SELECT audience_id,
        page_section2 as page_section,
        count(*)                  as topic_count
 FROM vb_news_topic_activity
-WHERE audience_id IN (SELECT DISTINCT audience_id FROM vb_too_few_visits)--keep usrs who are not cold starts
+WHERE audience_id IN (SELECT DISTINCT audience_id FROM vb_too_few_visits)--keep users who are not cold starts
 GROUP BY 1, 2
 ORDER BY 1, 3
 ;
