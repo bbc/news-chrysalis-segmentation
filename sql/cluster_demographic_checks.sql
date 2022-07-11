@@ -101,7 +101,7 @@ WHERE age_range ISNULL
    OR acorn_category ISNULL;
 
 
-SELECT cluster,
+SELECT cluster
 FROM vb_cluster_demo
 ORDER BY cluster, nation, age_range, gender, acorn_category
 LIMIT 10;
