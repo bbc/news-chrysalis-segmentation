@@ -99,6 +99,6 @@ FROM vb_news_topic_activity;
 
 
 ---- in new df2
-SELECT count(*) as rows, --331,753,008
-       count(distinct audience_id) as users --7,903,132
+SELECT count(*) as rows, --276,508,075
+       count(distinct audience_id) as users --7,874,649
 FROM vb_news_topic_activity;
