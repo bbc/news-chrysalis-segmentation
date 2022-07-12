@@ -1,4 +1,5 @@
-BEGIN;
+--FROM s3_analytics.df2_audience_activity
+
 set search_path TO 'central_insights_sandbox';
 
 DROP TABLE IF EXISTS vb_dates;
@@ -8,7 +9,7 @@ CREATE TABLE vb_dates
     max_date date
 );
 INSERT INTO vb_dates
-VALUES ('2022-01-17', '2022-04-17');
+VALUES ('2022-06-01', '2022-06-30');
 SELECT * FROM vb_dates;
 
 -- remove any sections we won't be using such as local news
@@ -46,7 +47,8 @@ SELECT DISTINCT dt,
                 audience_id,
                 page_name,
                 REPLACE(page_section, '-', '_') as page_section2
-FROM s3_audience.audience_activity
+--FROM s3_audience.audience_activity
+FROM s3_analytics.df2_audience_activity
 WHERE dt BETWEEN (SELECT REPLACE(min_date, '-', '') FROM vb_dates) AND (SELECT REPLACE(max_date, '-', '') FROM vb_dates)
   AND destination = 'PS_NEWS'
   AND is_signed_in = TRUE
@@ -90,21 +92,13 @@ FROM vb_page_topics a
 ORDER BY a.audience_id
 ;
 
-SELECT count(distinct audience_id) FROM vb_page_topics_perc;--7,706,467
-
--- to read into python
-SELECT audience_id, page_section, topic_perc
-FROM central_insights_sandbox.vb_page_topics_perc
-WHERE audience_id IN
-      (SELECT DISTINCT audience_id FROM central_insights_sandbox.vb_page_topics_perc ORDER BY RANDOM() LIMIT 1000)
-UNION
---this part is to ensure every topic is included
-SELECT DISTINCT 'dummy'::varchar as audience_id, page_section, 0::double precision as topic_perc
-FROM central_insights_sandbox.vb_page_topics_perc
-ORDER BY 2;
+---- in old/normal df1
+SELECT count(*) as rows, --275,545,695
+       count(distinct audience_id) as users --7,891,691
+FROM vb_news_topic_activity;
 
 
-
-GRANT ALL ON central_insights_sandbox.vb_page_topics_perc to edward_dearden with GRANT OPTION;
-
-END;
+---- in new df2
+SELECT count(*) as rows, --276,508,075
+       count(distinct audience_id) as users --7,874,649
+FROM vb_news_topic_activity;

@@ -62,9 +62,15 @@ data/
 renv/library/
 renv/*.ignore
 
+venv/*
+
+*.twbr
+*.twb
+*.pptx
+
 
 # pycache
 *__pycache__
 
-venv/*
+
 
