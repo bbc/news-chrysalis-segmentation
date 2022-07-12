@@ -67,3 +67,10 @@ venv/*
 *.twbr
 *.twb
 *.pptx
+
+
+# pycache
+*__pycache__
+
+
+
