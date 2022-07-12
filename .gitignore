@@ -63,3 +63,7 @@ renv/library/
 renv/*.ignore
 
 venv/*
+
+*.twbr
+*.twb
+*.pptx
