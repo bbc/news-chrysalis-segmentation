@@ -11,90 +11,69 @@ INSERT INTO ed_dates VALUES (cast('<params.date>'::varchar AS date)-(cast('<para
 -- INSERT INTO ed_dates VALUES ('2022-01-17', '2022-02-14');
 -- GRANT ALL ON ed_dates TO edward_dearden WITH GRANT OPTION;
 
+
+-- Limit to sections we want
+CREATE TEMP TABLE ed_page_sections
+(
+    page_section varchar(4000)
+);
+INSERT INTO ed_page_sections
+VALUES ('business'),
+       ('disability'),
+       ('education'),
+       ('entertainment_and_arts'),
+       ('health'),
+       ('newsbeat'),
+       ('politics'),
+       ('reality_check'),
+       ('science_and_environment'),
+       ('stories'),
+       ('technology'),
+       ('uk'),
+       ('world')
+;
+
+-- create a list of adults
+CREATE TEMP TABLE ed_adult_users as
+SELECT bbc_hid3 FROM prez.profile_extension WHERE age_range NOT IN ('0-5', '6-10', '11-15');
+
+
+--- get the user's activity
+CREATE TEMP TABLE ed_news_topic_activity as
+SELECT DISTINCT dt,
+                visit_id,
+                audience_id,
+                page_name,
+                REPLACE(page_section, '-', '_') as page_section2
+FROM s3_audience.audience_activity
+WHERE dt BETWEEN (SELECT REPLACE(min_date, '-', '') FROM ed_dates) AND (SELECT REPLACE(max_date, '-', '') FROM ed_dates)
+  AND destination = 'PS_NEWS'
+  AND is_signed_in = TRUE
+  and is_personalisation_on = TRUE
+  AND page_section2 NOT ILIKE 'name=%'
+  AND page_section2 IN (SELECT page_section FROM ed_page_sections)
+  AND audience_id IN (SELECT bbc_hid3 FROM ed_adult_users)
+;
+
+---Find users who've don't have more then X visits
+CREATE TEMP TABLE ed_too_few_visits as
+SELECT DISTINCT audience_id,
+                count(distinct dt || visit_id) as visits
+FROM ed_news_topic_activity
+GROUP BY 1
+HAVING visits >= 3;
+
+
+-- collect the number of topics people have viewed
 CREATE TEMP TABLE ed_page_topics as
-    with get_pages as (
-        SELECT DISTINCT dt, visit_id, audience_id, page_name,
-                        REPLACE(page_section,'-','_') as page_section
-        FROM s3_audience.audience_activity
-        WHERE dt BETWEEN (SELECT REPLACE(min_date, '-', '') FROM ed_dates) AND (SELECT REPLACE(max_date, '-', '') FROM ed_dates)
-          AND destination = 'PS_NEWS'
-          AND is_signed_in = TRUE
-          and is_personalisation_on = TRUE
-          AND page_section NOT ILIKE 'name=%'
-
-    )
-    SELECT audience_id,
-           CASE
-               WHEN page_section in ('beds_bucks_and_herts',
-                                     'berkshire',
-                                     'birmingham_and_black_country',
-                                     'bradford_and_west_yorkshire',
-                                     'bristol',
-                                     'cambridgeshire',
-                                     'cornwall',
-                                     'coventry_and_warwickshire',
-                                     'cumbria',
-                                     'derbyshire',
-                                     'devon',
-                                     'dorset',
-                                     'essex',
-                                     'gloucestershire',
-                                     'hampshire',
-                                     'hereford_and_worcester',
-                                     'humberside',
-                                     'kent',
-                                     'lancashire',
-                                     'leeds_and_west_yorkshire',
-                                     'leicester',
-                                     'lincolnshire',
-                                     'manchester',
-                                     'merseyside',
-                                     'norfolk',
-                                     'northamptonshire',
-                                     'nottingham',
-                                     'oxford',
-                                     'shropshire',
-                                     'somerset',
-                                     'south_yorkshire',
-                                     'stoke_and_staffordshire',
-                                     'suffolk',
-                                     'surrey',
-                                     'sussex',
-                                     'tayside_and_central',
-                                     'tees',
-                                     'tyne_and_wear',
-                                     'wiltshire',
-                                     'york_and_north_yorkshire') THEN 'region_england'
-               WHEN page_section IN ('guernsey',
-                                     'isle_of_man',
-                                     'jersey') THEN 'region_islands'
-               WHEN page_section IN ('foyle_and_west') THEN 'region_northern_ireland'
-               WHEN page_section IN ('edinburgh_east_and_fife',
-                                     'glasgow_and_west',
-                                     'highlands_and_islands',
-                                     'north_east_orkney_and_shetland',
-                                     'south_scotland') THEN 'region_scotland'
-               WHEN page_section IN ('mid_wales',
-                                     'north_east_wales',
-                                     'north_west_wales',
-                                     'south_east_wales',
-                                     'south_west_wales') THEN 'region_wales'
-               ELSE page_section END as page_section,
-
-           count(*)                  as topic_count
-    FROM get_pages
-    GROUP BY 1, 2
-    ORDER BY 1, 3
-    ;
-
-CREATE TEMP TABLE ed_section_usage as
-  SELECT page_section, count(distinct audience_id) as users, sum(topic_count) as count
-    FROM ed_page_topics
-    GROUP BY 1
-    HAVING count <1000
-    ORDER BY 3 desc;
-
-DELETE FROM ed_page_topics WHERE page_section IN (SELECT page_section FROM ed_section_usage);
+SELECT audience_id,
+       page_section2 as page_section,
+       count(*) as topic_count
+FROM ed_news_topic_activity
+WHERE audience_id IN (SELECT DISTINCT audience_id FROM ed_too_few_visits)--keep users who are not cold starts
+GROUP BY 1, 2
+ORDER BY 1, 3
+;
 
 DROP TABLE IF EXISTS <params.table_name>;
 CREATE TABLE <params.table_name> as
