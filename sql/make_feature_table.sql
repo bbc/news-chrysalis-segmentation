@@ -61,7 +61,7 @@ SELECT DISTINCT audience_id,
                 count(distinct dt || visit_id) as visits
 FROM ed_news_topic_activity
 GROUP BY 1
-HAVING visits >= 3;
+HAVING visits >= <params.minimum_visits>;
 
 
 -- collect the number of topics people have viewed
