@@ -92,4 +92,20 @@ GRANT ALL ON <params.table_name> TO edward_dearden WITH GRANT OPTION;
 GRANT ALL ON <params.table_name> TO vicky_banks WITH GRANT OPTION;
 GRANT ALL ON <params.table_name> TO GROUP central_insights;
 
+CREATE TABLE IF NOT EXISTS taste_segmentation_labelling_meta (
+    start_date date,
+    end_date date,
+    num_users int
+);
+INSERT INTO taste_segmentation_labelling_meta
+SELECT
+  cast('<params.date>'::varchar AS date)-(cast('<params.num_days>'::varchar AS int)),
+  cast('<params.date>'::varchar AS date),
+  COUNT(DISTINCT audience_id)
+FROM <params.table_name>;
+
+GRANT ALL ON taste_segmentation_labelling_meta TO edward_dearden WITH GRANT OPTION;
+GRANT ALL ON taste_segmentation_labelling_meta TO vicky_banks WITH GRANT OPTION;
+GRANT ALL ON taste_segmentation_labelling_meta TO GROUP central_insights;
+
 END;
