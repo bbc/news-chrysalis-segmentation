@@ -32,12 +32,16 @@ N_COMPONENTS = int(os.environ.get('n_components'))
 
 # SQL query for pulling out features
 SQL_QUERY = f"""
+BEGIN;
+SET SEED TO .25;
+
 SELECT audience_id, page_section, topic_perc
 FROM {TABLE_NAME}
 WHERE audience_id IN
       (SELECT DISTINCT audience_id FROM {TABLE_NAME} ORDER BY RANDOM() LIMIT 1000000)
 UNION
 SELECT DISTINCT 'dummy'::varchar as audience_id, page_section, 0::double precision as topic_perc FROM {TABLE_NAME} ORDER BY 2;
+COMMIT;
 """.strip()
 
 
