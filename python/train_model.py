@@ -32,16 +32,12 @@ N_COMPONENTS = int(os.environ.get('n_components'))
 
 # SQL query for pulling out features
 SQL_QUERY = f"""
-BEGIN;
-SET SEED TO .25;
-
 SELECT audience_id, page_section, topic_perc
 FROM {TABLE_NAME}
 WHERE audience_id IN
       (SELECT DISTINCT audience_id FROM {TABLE_NAME} ORDER BY RANDOM() LIMIT 1000000)
 UNION
 SELECT DISTINCT 'dummy'::varchar as audience_id, page_section, 0::double precision as topic_perc FROM {TABLE_NAME} ORDER BY 2;
-COMMIT;
 """.strip()
 
 
@@ -52,7 +48,8 @@ s3credentials = requests.get('http://169.254.169.254/latest/meta-data/iam/securi
 if __name__ == '__main__':
     # Read in the feature table for training the model
     db = Databases()
-    feature_table = db.read_from_db(SQL_QUERY)
+    db.write_to_db("SET SEED TO .25;")                                          # Set the random seed
+    feature_table = db.read_from_db(SQL_QUERY)                                  # Get the data
     feature_table = feature_table.set_index(['audience_id', 'page_section'])    # Set the index of the data read from Redshift
     feature_table = feature_table.unstack('page_section', fill_value=0)         # Move the unique values of section up to become columns
     feature_table = feature_table.loc[feature_table.index != 'dummy']           # Remove the dummy rows added in to ensure all features are gathered
