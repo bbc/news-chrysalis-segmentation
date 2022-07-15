@@ -95,13 +95,15 @@ GRANT ALL ON <params.table_name> TO GROUP central_insights;
 CREATE TABLE IF NOT EXISTS taste_segmentation_training_meta (
     start_date date,
     end_date date,
-    num_users int
+    num_users int,
+    minimum_visits int
 );
 INSERT INTO taste_segmentation_training_meta
 SELECT
   cast('<params.date>'::varchar AS date)-(cast('<params.num_days>'::varchar AS int)),
   cast('<params.date>'::varchar AS date),
-  COUNT(DISTINCT audience_id)
+  COUNT(DISTINCT audience_id),
+  cast('<params.minimum_visits>'::varchar AS int)
 FROM <params.table_name>;
 
 GRANT ALL ON taste_segmentation_training_meta TO edward_dearden WITH GRANT OPTION;
