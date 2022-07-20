@@ -72,5 +72,5 @@ venv/*
 # pycache
 *__pycache__
 
-
+*.csv
 
