@@ -49,7 +49,7 @@ cluster_names<- data.frame(
     "Politics & reality check",
     "Tech, science & business"
   ),
-  cluster =c(6,4,2,0,1,9,5)
+  cluster =c(6,4,2,0,1,3,5)
 )
 cluster_names
 
@@ -158,7 +158,7 @@ group_data <- function(df, measure) {
 }
 
 #### to analyse the initial data #####
-set_cluster_number(cluster_numbers= c(6,4,2,0,1,9,5) )
+set_cluster_number(cluster_numbers= c(6,4,2,0,1,3,5) )
 ## this is in a different structure to the comparison data
 comparison_data <-
   dbGetQuery(
@@ -208,6 +208,66 @@ cluster_summary<-
 
 cluster_summary
 write.csv(cluster_summary %>% select(-order), "clusters_feb_1_month.csv", row.names = FALSE)
+
+#### for the july 3 months - using the same 3 month segment as for april 3 months
+set_cluster_number(cluster_numbers= c(5,6,1,3,4,2,0) )
+get_demographic_data(sql_table = "central_insights_sandbox.news_user_taste_segments_july_3_month")
+cluster_summary<-
+  get_cluster_totals(comparison_data) %>% 
+  left_join(group_data(comparison_data, 'gender')) %>% 
+  left_join(group_data(comparison_data, 'age_range'))
+
+cluster_summary
+write.csv(cluster_summary %>% select(-order), "clusters_july_3_month.csv", row.names = FALSE)
+
+
+
+
+########## direct comparison ######
+## get the .csv files and read them into df
+files <- list.files(pattern="*.csv")
+files<-files[files!='all_comparisons.csv']
+names <- sub('clusters_','', sub('.csv','', files))
+for(i in 1:length(files)){
+  assign(names[i], read.csv(files[i]) %>% cbind(name = names[i]) )
+}
+
+
+
+compare_metrics <- function(measure) {
+  for (df in 1:length(names)) {
+    metric_comparison <-
+      rbind(metric_comparison,
+            get(names[df]) %>% select(description,!!sym(measure), name))
+  }
+  
+  all_comparisons <<-
+    rbind(
+      all_comparisons,
+      metric_comparison %>% spread(key = name, value = !!sym(measure)) %>%
+        cbind(metric = measure) %>%
+        select(metric, description, original_clusters, everything())
+    )
+  
+  return(all_comparisons)
+}
+
+metric_comparison <- data.frame()
+all_comparisons <- data.frame()
+metrics <- colnames(get(names[1]) %>% select(-description,-cluster,-name)) ##options of variables to compare
+for(i in 1:length(metrics)){
+  print(metrics[i])
+  compare_metrics(metrics[i])
+}
+all_comparisons
+write.csv(all_comparisons, "all_comparisons.csv", row.names = FALSE)
+
+
+
+
+
+
+
 
 
 
